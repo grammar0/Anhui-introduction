@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="安徽省十六市互动地图：点击任一城市区域，查看城市简介、面积、人口与城市名片。">
+<title>安徽十六城 · 互动地图</title>
+<style>
+  :root{
+    --paper:#f3eee2;
+    --paper-2:#fbf8f0;
+    --ink:#1f2c27;
+    --muted:#6b746c;
+    --line:rgba(31,44,39,.13);
+    --line-strong:rgba(31,44,39,.24);
+    --accent:#b34a32;
+    --gold:#a97c32;
+    --north:#c3a05f;
+    --central:#6f9785;
+    --south:#7794ae;
+    --shadow:0 18px 50px rgba(37,45,38,.12);
+    --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 620px at 8% -8%, #fffdf7 0%, rgba(255,253,247,0) 60%),
+      radial-gradient(900px 700px at 105% 108%, #e5dcc9 0%, rgba(229,220,201,0) 58%),
+      var(--paper);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:0;
+    opacity:.35;
+    background-image:radial-gradient(rgba(78,88,74,.18) .7px, transparent .7px);
+    background-size:18px 18px;
+    mask-image:linear-gradient(to bottom, rgba(0,0,0,.65), transparent 70%);
+  }
+  body.modal-open{overflow:hidden}
+  .page{
+    position:relative;
+    z-index:1;
+    width:min(1180px, calc(100% - 48px));
+    margin:0 auto;
+    padding:42px 0 30px;
+  }
+
+  /* ---------- 页头 ---------- */
+  .masthead{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-areas:"brand legend" "lede legend";
+    align-items:end;
+    gap:10px 28px;
+    padding-bottom:28px;
+    border-bottom:1px solid var(--line-strong);
+  }
+  .brand{grid-area:brand;display:flex;align-items:center;gap:18px}
+  .seal{
+    width:64px;height:64px;flex:0 0 auto;
+    display:grid;place-items:center;
+    background:var(--accent);
+    color:#fff7ea;
+    border-radius:6px;
+    box-shadow:inset 0 0 0 2px rgba(255,247,234,.55), 0 8px 18px rgba(179,74,50,.22);
+    transform:rotate(-2deg);
+  }
+  .seal span{
+    font-family:var(--serif);
+    font-size:38px;
+    line-height:1;
+    font-weight:700;
+    transform:translateY(-1px);
+  }
+  .kicker{
+    margin:0 0 4px;
+    font-size:10px;
+    letter-spacing:.28em;
+    font-weight:700;
+    color:var(--gold);
+    text-transform:uppercase;
+  }
+  h1{
+    margin:0;
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:clamp(38px,5vw,58px);
+    letter-spacing:.04em;
+    line-height:1.05;
+  }
+  .lede{
+    grid-area:lede;
+    margin:0;
+    max-width:600px;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.8;
+    letter-spacing:.04em;
+  }
+  .legend{
+    grid-area:legend;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    gap:8px 18px;
+    padding-bottom:8px;
+    font-size:12px;
+    color:#4e5a51;
+  }
+  .legend span{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .legend i{
+    width:10px;height:10px;border-radius:3px;
+    background:var(--c);
+    box-shadow:inset 0 0 0 1px rgba(31,44,39,.14);
+  }
+
+  /* ---------- 主区域 ---------- */
+  .atlas{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 338px;
+    gap:26px;
+    align-items:start;
+    padding-top:28px;
+  }
+  .map-card,
+  .index-card{
+    background:rgba(251,248,240,.86);
+    border:1px solid rgba(31,44,39,.12);
+    border-radius:20px;
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(8px);
+  }
+  .map-card{overflow:hidden}
+  .card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:19px 24px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  .card-head h2{
+    margin:0;
+    font-family:var(--serif);
+    font-size:17px;
+    letter-spacing:.08em;
+    font-weight:700;
+  }
+  .head-hint{
+    display:inline-flex;align-items:center;gap:7px;
+    color:var(--muted);font-size:11px;letter-spacing:.08em;white-space:nowrap;
+  }
+  .head-hint i{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 0 4px rgba(179,74,50,.12);
+  }
+  .map-shell{
+    position:relative;
+    margin:18px;
+    padding:2px;
+    border-radius:16px;
+    border:1px solid rgba(31,44,39,.09);
+    background-color:#f8f4e9;
+    background-image:
+      radial-gradient(rgba(78,88,74,.16) .8px, transparent .8px),
+      radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.9), rgba(255,255,255,0) 62%);
+    background-size:20px 20px, 100% 100%;
+    overflow:hidden;
+  }
+  .map-shell::before,
+  .map-shell::after{
+    content:"";
+    position:absolute;
+    width:24px;height:24px;
+    border-color:rgba(169,124,50,.55);
+    border-style:solid;
+    z-index:2;
+    pointer-events:none;
+  }
+  .map-shell::before{top:10px;left:10px;border-width:1px 0 0 1px}
+  .map-shell::after{bottom:10px;right:10px;border-width:0 1px 1px 0}
+  .map-shell svg{display:block;width:100%;height:auto;position:relative;z-index:1}
+  .map-note{
+    position:absolute;
+    right:16px;bottom:13px;
+    z-index:2;
+    font-size:9px;
+    letter-spacing:.14em;
+    color:rgba(31,44,39,.4);
+    pointer-events:none;
+  }
+  .north-mark{
+    position:absolute;
+    top:18px;right:18px;
+    z-index:2;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:rgba(31,44,39,.48);
+    font-size:9px;letter-spacing:.16em;
+    pointer-events:none;
+  }
+  .north-mark svg{width:22px;height:26px;display:block}
+
+  /* ---------- 地图 ---------- */
+  .city{
+    stroke:#faf6ea;
+    stroke-width:1.35;
+    stroke-linejoin:round;
+    cursor:pointer;
+    transition:filter .18s ease, opacity .18s ease, stroke .18s ease;
+    outline:none;
+  }
+  .city:hover,
+  .city:focus-visible{filter:brightness(1.07) saturate(1.08)}
+  .city:focus-visible{stroke:#fffdf6;stroke-width:2.4}
+  .map-cities.has-selection .city:not(.is-active){opacity:.42}
+  .city.is-active{
+    stroke:#fffaf0;
+    stroke-width:2.6;
+    filter:brightness(1.05) drop-shadow(0 0 7px rgba(43,63,53,.28));
+  }
+  .province-line{
+    fill:none;
+    stroke:#26342d;
+    stroke-width:2.1;
+    stroke-linejoin:round;
+    stroke-linecap:round;
+    pointer-events:none;
+  }
+  .city-label{
+    font-family:var(--serif);
+    font-size:15px;
+    font-weight:700;
+    fill:#24312b;
+    letter-spacing:.08em;
+    paint-order:stroke;
+    stroke:#faf6ea;
+    stroke-width:3.4px;
+    stroke-linejoin:round;
+    pointer-events:none;
+    transition:fill .18s ease, opacity .18s ease;
+  }
+  .map-labels.has-selection .city-label{opacity:.38}
+  .map-labels.has-selection .city-label.is-active{opacity:1;fill:var(--accent)}
+  .city-label.is-active{fill:var(--accent)}
+  .map-labels.is-hidden{display:none}
+  .map-cities.is-filtered .city:not(.is-active){opacity:.32}
+
+  /* ---------- 底部信息 ---------- */
+  .card-foot{
+    display:flex;
+    align-items:center;
+    gap:26px;
+    padding:0 24px 20px;
+    color:var(--muted);
+    font-size:11px;
+    letter-spacing:.05em;
+  }
+  .card-foot b{
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:15px;
+    font-weight:700;
+    margin-right:3px;
+  }
+  .foot-tip{margin-left:auto;color:rgba(31,44,39,.42)}
+
+  /* ---------- 城市索引 ---------- */
+  .index-card{
+    padding:22px 20px 18px;
+    position:sticky;
+    top:20px;
+  }
+  .index-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    gap:10px;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--line);
+  }
+  .index-head h2{
+    margin:0;
+    font-family:var(--serif);
+    font-size:21px;
+    letter-spacing:.1em;
+  }
+  .index-head span{
+    font-size:9px;letter-spacing:.2em;color:var(--gold);font-weight:700;
+  }
+  .index-sub{
+    margin:11px 0 14px;
+    color:var(--muted);
+    font-size:11px;
+    line-height:1.65;
+    letter-spacing:.04em;
+  }
+  .index-groups{
+    display:grid;
+    gap:14px;
+  }
+  .index-group{min-width:0}
+  .group-label{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin:0 0 6px;
+    color:#59655c;
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.18em;
+  }
+  .group-bar{
+    width:13px;height:2px;
+    background:var(--dot);
+    border-radius:999px;
+  }
+  .group-label em{
+    margin-left:auto;
+    color:#a1a99e;
+    font-style:normal;
+    font-size:8px;
+    letter-spacing:.08em;
+  }
+  .city-list{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:4px;
+  }
+  .city-item{
+    appearance:none;
+    display:grid;
+    grid-template-columns:7px 1fr;
+    grid-template-rows:auto auto;
+    column-gap:7px;
+    align-items:center;
+    padding:7px 7px;
+    border:1px solid transparent;
+    border-radius:8px;
+    background:transparent;
+    color:var(--ink);
+    text-align:left;
+    cursor:pointer;
+    transition:background .16s ease, border-color .16s ease, transform .16s ease;
+    font-family:var(--sans);
+  }
+  .city-item:hover,
+  .city-item:focus-visible{
+    background:rgba(255,253,246,.9);
+    border-color:rgba(31,44,39,.12);
+    transform:translateY(-1px);
+    outline:none;
+  }
+  .city-item.is-active{
+    background:#fffdf6;
+    border-color:rgba(179,74,50,.35);
+    box-shadow:inset 3px 0 0 var(--accent);
+  }
+  .city-dot{
+    grid-row:1 / span 2;
+    width:8px;height:8px;border-radius:50%;
+    background:var(--dot);
+    box-shadow:inset 0 0 0 1px rgba(31,44,39,.12);
+  }
+  .city-cn{font-size:13px;font-weight:600;letter-spacing:.06em;line-height:1.35}
+  .city-en{font-size:8px;letter-spacing:.12em;color:#91998f;line-height:1.2}
+  .index-foot{
+    margin-top:14px;
+    padding-top:13px;
+    border-top:1px dashed var(--line-strong);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    color:var(--muted);
+    font-size:9px;
+    letter-spacing:.08em;
+  }
+  .index-foot p{margin:0;color:var(--gold);font-weight:700;letter-spacing:.16em}
+
+  /* ---------- 页脚 ---------- */
+  .page-foot{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    gap:8px 24px;
+    padding-top:22px;
+    margin-top:26px;
+    border-top:1px solid var(--line);
+    color:rgba(31,44,39,.44);
+    font-size:9px;
+    letter-spacing:.12em;
+  }
+
+  /* ---------- 弹窗 ---------- */
+  .modal{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    display:grid;
+    place-items:center;
+    padding:24px;
+    visibility:hidden;
+    opacity:0;
+    transition:opacity .22s ease, visibility .22s ease;
+  }
+  .modal.is-open{visibility:visible;opacity:1}
+  .modal-backdrop{
+    position:absolute;
+    inset:0;
+    background:rgba(24,34,29,.48);
+    backdrop-filter:blur(5px);
+    -webkit-backdrop-filter:blur(5px);
+  }
+  .sheet{
+    --region-color:var(--central);
+    position:relative;
+    width:min(640px, 100%);
+    max-height:min(86vh, 820px);
+    overflow:auto;
+    padding:34px 40px 26px;
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,.92), rgba(255,255,255,0) 58%),
+      var(--paper-2);
+    border:1px solid rgba(31,44,39,.14);
+    border-radius:22px;
+    box-shadow:0 34px 90px rgba(17,25,20,.32);
+    transform:translateY(16px) scale(.985);
+    transition:transform .28s cubic-bezier(.2,.8,.25,1);
+    scrollbar-width:thin;
+  }
+  .modal.is-open .sheet{transform:none}
+  .sheet::before{
+    content:"";
+    position:absolute;
+    left:0;top:0;
+    width:100%;height:4px;
+    background:linear-gradient(90deg, var(--region-color), rgba(255,255,255,0));
+  }
+  .sheet-close{
+    position:absolute;
+    top:16px;right:16px;
+    z-index:3;
+    width:34px;height:34px;
+    display:grid;place-items:center;
+    border:1px solid rgba(31,44,39,.16);
+    border-radius:50%;
+    background:rgba(255,253,246,.8);
+    color:#4d5a51;
+    cursor:pointer;
+    transition:background .16s ease, transform .16s ease, color .16s ease;
+  }
+  .sheet-close:hover,
+  .sheet-close:focus-visible{background:#fff;color:var(--accent);transform:rotate(90deg);outline:none}
+  .sheet-close svg{width:15px;height:15px}
+  .sheet-head{
+    position:relative;
+    display:flex;
+    align-items:flex-start;
+    gap:14px;
+    padding-right:40px;
+  }
+  .sheet-badge{
+    flex:0 0 auto;
+    margin-top:8px;
+    padding:4px 9px;
+    border:1px solid var(--region-color);
+    border-radius:999px;
+    color:var(--region-color);
+    background:rgba(255,255,255,.38);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.16em;
+    line-height:1.2;
+  }
+  .sheet-titles h2{
+    margin:0;
+    font-family:var(--serif);
+    font-size:clamp(32px,5vw,46px);
+    line-height:1.12;
+    letter-spacing:.08em;
+  }
+  .sheet-titles p{
+    margin:5px 0 0;
+    color:#97a096;
+    font-size:9px;
+    letter-spacing:.26em;
+    font-weight:700;
+  }
+  .sheet-glyph{
+    position:absolute;
+    right:-14px;top:-34px;
+    font-family:var(--serif);
+    font-size:128px;
+    line-height:1;
+    color:var(--region-color);
+    opacity:.09;
+    pointer-events:none;
+    user-select:none;
+  }
+  .sheet-tagline{
+    margin:15px 0 20px;
+    padding-left:13px;
+    border-left:3px solid var(--region-color);
+    font-family:var(--serif);
+    font-size:17px;
+    font-weight:700;
+    letter-spacing:.1em;
+    color:#3d4a42;
+  }
+  .sheet-stats{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .sheet-stats > div{
+    padding:13px 14px 12px 0;
+    min-width:0;
+  }
+  .sheet-stats > div + div{
+    padding-left:16px;
+    border-left:1px solid var(--line);
+  }
+  .sheet-stats span{
+    display:block;
+    margin-bottom:4px;
+    color:var(--muted);
+    font-size:9px;
+    letter-spacing:.14em;
+  }
+  .sheet-stats strong{
+    font-family:var(--serif);
+    font-size:25px;
+    font-weight:700;
+    line-height:1.1;
+    letter-spacing:.02em;
+  }
+  .sheet-stats em{
+    margin-left:3px;
+    font-style:normal;
+    color:#8b9389;
+    font-size:9px;
+    letter-spacing:.04em;
+  }
+  .sheet-desc{
+    margin:19px 0 17px;
+    color:#4d5a51;
+    font-size:13px;
+    line-height:1.95;
+    letter-spacing:.035em;
+    text-align:justify;
+  }
+  .sheet-tags{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:22px;
+  }
+  .tag{
+    padding:5px 10px;
+    border:1px solid rgba(31,44,39,.12);
+    border-radius:999px;
+    background:rgba(255,255,255,.55);
+    color:#536057;
+    font-size:10px;
+    letter-spacing:.06em;
+  }
+  .sheet-spots h3{
+    display:flex;
+    align-items:baseline;
+    gap:9px;
+    margin:0 0 10px;
+    font-family:var(--serif);
+    font-size:14px;
+    letter-spacing:.1em;
+  }
+  .sheet-spots h3 span{
+    color:#a3aa9f;
+    font-family:var(--sans);
+    font-size:8px;
+    letter-spacing:.2em;
+  }
+  .sheet-spots ul{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px 18px;
+    margin:0;
+    padding:0;
+    list-style:none;
+  }
+  .sheet-spots li{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#46534a;
+    font-size:12px;
+    letter-spacing:.04em;
+  }
+  .sheet-spots li::before{
+    content:"";
+    width:5px;height:5px;
+    flex:0 0 auto;
+    background:var(--region-color);
+    transform:rotate(45deg);
+  }
+  .sheet-source{
+    margin:24px 0 0;
+    padding-top:12px;
+    border-top:1px dashed var(--line-strong);
+    color:rgba(31,44,39,.4);
+    font-size:9px;
+    letter-spacing:.06em;
+  }
+
+  @media (max-width:980px){
+    .masthead{grid-template-columns:1fr;grid-template-areas:"brand" "lede" "legend"}
+    .legend{justify-content:flex-start;padding-top:4px}
+    .atlas{grid-template-columns:1fr}
+    .index-card{position:static}
+    .index-groups{grid-template-columns:repeat(3,1fr);gap:20px}
+    .city-list{grid-template-columns:1fr}
+  }
+  @media (max-width:640px){
+    .page{width:min(100% - 28px, 1180px);padding-top:24px}
+    .brand{gap:13px}
+    .seal{width:52px;height:52px}
+    .seal span{font-size:31px}
+    h1{font-size:38px}
+    .lede{font-size:12.5px}
+    .atlas{padding-top:18px;gap:18px}
+    .card-head{padding:15px 16px 13px}
+    .card-head h2{font-size:15px}
+    .head-hint{display:none}
+    .map-shell{margin:12px}
+    .card-foot{gap:14px;padding:0 16px 16px}
+    .foot-tip{display:none}
+    .city-list{grid-template-columns:repeat(2,1fr)}
+    .index-groups{grid-template-columns:1fr}
+    .city-label{display:none}
+    .map-note{display:none}
+    .modal{padding:0;place-items:end center}
+    .sheet{
+      width:100%;
+      max-height:88vh;
+      border-radius:20px 20px 0 0;
+      padding:28px 22px 22px;
+    }
+    .sheet-titles h2{font-size:34px}
+    .sheet-glyph{font-size:96px;right:-8px;top:-24px}
+    .sheet-stats strong{font-size:21px}
+    .sheet-spots ul{grid-template-columns:1fr 1fr;gap:7px 10px}
+    .sheet-desc{font-size:12.5px;line-height:1.85}
+    .page-foot{font-size:8px}
+  }
+  @media (max-width:420px){
+    .sheet-stats > div{padding-right:8px}
+    .sheet-stats > div + div{padding-left:11px}
+    .sheet-stats strong{font-size:19px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div class="brand">
+      <div class="seal" aria-hidden="true"><span>皖</span></div>
+      <div>
+        <p class="kicker">ANHUI · PROVINCE ATLAS</p>
+        <h1>安徽十六城</h1>
+      </div>
+    </div>
+    <p class="lede">从淮北平原到新安江畔，十六座城市各有山河。点击地图上的任一区域，展开它的风物、人物与故事。</p>
+    <div class="legend" aria-label="区域图例">
+      <span><i style="--c:var(--north)"></i>皖北</span>
+      <span><i style="--c:var(--central)"></i>江淮</span>
+      <span><i style="--c:var(--south)"></i>皖南</span>
+    </div>
+  </header>
+
+  <main class="atlas">
+    <section class="map-card" aria-labelledby="mapHeading">
+      <div class="card-head">
+        <h2 id="mapHeading">安徽省行政区划 · 互动地图</h2>
+        <span class="head-hint"><i></i>点击城市区域</span>
+      </div>
+      <div class="map-shell">
+        <svg id="anhuiMap" viewBox="0 0 760 980" role="img" aria-labelledby="mapTitle mapDesc">
+          <title id="mapTitle">安徽省十六市互动地图</title>
+          <desc id="mapDesc">安徽省地图按地级市分为十六个可点击区域，点击任一城市可查看该市简介。</desc>
+          <defs>
+            <filter id="mapShadow" filterUnits="userSpaceOnUse" x="-20" y="-20" width="800" height="1020">
+              <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#2a382f" flood-opacity=".17"/>
+            </filter>
+          </defs>
+          <g class="map-cities" id="mapCities" filter="url(#mapShadow)">
+          <path class="city" data-city="hefei" d="M345.63 622.74L347.10 623.46L348.99 626.42L351.37 626.16L352.52 628.80L355.60 634.20L356.96 637.82L358.83 641.46L358.81 644.80L358.10 645.64L358.93 649.56L358.12 652.46L360.87 654.52L363.84 654.65L366.64 652.04L368.88 655.12L372.04 657.26L374.00 660.77L374.58 663.32L377.18 665.24L381.62 669.83L382.78 670.23L384.66 669.69L385.89 667.19L387.02 667.22L388.60 669.05L390.51 669.33L392.14 668.55L393.26 669.28L395.16 673.48L394.53 674.28L395.45 675.68L397.19 675.52L397.51 673.28L401.55 671.12L405.75 672.74L406.73 670.18L408.35 669.10L413.57 667.88L415.44 666.59L413.39 661.99L411.97 660.98L412.13 659.92L413.51 659.16L416.11 659.02L417.88 655.68L418.55 653.46L417.89 650.71L416.13 648.73L416.89 647.27L418.34 646.74L418.86 643.46L422.03 642.04L422.97 639.63L422.41 636.49L419.10 633.89L418.04 632.45L420.26 631.51L422.52 629.94L423.35 626.79L425.07 624.22L425.41 622.89L424.93 620.24L429.41 619.43L431.43 616.24L433.99 615.73L436.04 611.63L437.26 606.65L440.35 599.39L442.67 596.64L443.27 592.44L444.54 587.74L446.74 586.15L449.67 586.76L452.10 585.49L453.77 586.48L455.23 583.84L457.79 583.46L460.69 584.11L462.95 583.01L465.76 583.42L471.64 580.37L473.11 579.89L475.70 580.18L478.11 582.57L479.77 582.70L482.69 580.89L480.78 577.15L478.90 576.24L480.74 574.19L479.20 573.55L477.20 573.93L475.99 572.06L474.30 572.47L474.15 570.77L475.13 569.33L477.24 568.77L478.27 566.64L477.43 565.50L478.38 565.18L477.80 562.49L478.55 561.46L478.17 560.13L479.13 558.60L482.30 558.57L482.01 560.38L483.65 559.72L483.85 556.61L483.22 555.97L482.47 552.99L483.02 552.50L480.32 550.91L478.84 550.91L479.17 549.57L477.82 549.10L475.02 545.25L475.00 543.29L476.03 540.04L475.33 537.23L476.72 535.31L474.47 534.27L473.96 532.52L475.06 530.79L473.29 526.59L474.26 522.99L475.12 521.55L478.34 519.03L479.21 516.70L480.70 510.23L477.45 507.70L475.31 507.47L473.09 506.26L471.11 506.67L468.40 506.29L468.47 503.46L468.04 501.90L465.22 500.47L464.96 498.40L463.70 497.62L462.72 494.89L460.00 493.60L463.24 491.35L463.30 488.13L464.62 486.75L467.83 485.83L470.89 482.88L468.42 480.83L468.16 479.12L466.92 477.74L468.41 477.13L468.24 475.53L465.98 475.63L466.53 472.63L469.08 469.56L467.79 460.13L465.33 456.33L463.28 455.59L461.32 454.06L459.48 455.67L457.14 455.93L455.69 453.81L454.13 452.56L452.15 452.31L449.77 451.18L447.99 451.45L445.47 453.02L444.81 451.75L443.30 450.90L439.77 450.52L439.63 448.77L436.72 448.82L433.68 450.88L433.72 449.49L432.33 450.69L431.07 450.66L429.82 452.61L428.13 452.57L425.51 454.03L422.24 456.58L414.06 458.74L411.74 457.20L409.73 455.28L406.86 453.47L404.84 452.98L403.65 451.98L403.35 449.04L400.86 447.64L399.02 444.85L401.49 438.63L403.08 436.05L406.24 434.49L405.77 430.51L400.43 429.02L398.55 426.77L395.17 427.74L393.66 427.31L396.31 424.99L397.06 423.12L397.05 419.34L398.73 415.56L400.86 412.83L398.77 411.15L396.84 413.56L394.52 415.03L388.95 417.49L386.20 415.84L383.93 417.12L382.45 417.31L380.09 415.80L376.87 414.29L373.14 413.80L371.59 412.15L371.97 411.50L371.68 408.44L371.91 404.58L370.43 401.49L365.44 401.45L364.07 401.18L363.04 402.78L361.40 403.85L359.64 403.13L357.90 403.59L357.15 402.56L354.78 401.85L353.35 402.11L351.69 404.52L352.58 405.38L351.86 408.82L350.90 410.37L351.29 412.73L350.74 414.07L347.89 417.99L347.99 419.41L346.72 421.94L344.80 422.32L342.24 423.92L341.56 427.09L343.49 427.64L347.10 427.24L347.59 427.98L347.31 433.74L346.46 434.73L347.26 436.32L348.54 435.88L349.31 437.15L347.89 438.53L346.14 442.95L346.53 445.29L347.68 446.13L349.36 444.78L350.78 445.48L351.50 447.87L349.66 453.35L347.83 454.99L342.89 455.40L341.35 457.19L341.54 458.85L344.61 460.93L344.48 463.22L343.69 464.73L341.98 465.93L338.44 465.94L337.72 467.62L338.83 471.78L340.54 473.60L342.40 474.07L343.87 477.45L344.35 481.10L345.38 482.80L347.80 485.02L347.75 486.85L346.88 489.79L345.29 492.78L343.94 493.81L340.39 495.13L340.40 492.88L338.77 491.57L336.68 491.16L335.39 491.71L334.59 490.12L332.14 489.19L329.70 491.65L330.49 494.21L331.70 495.81L329.29 497.35L323.15 498.44L321.11 499.29L320.23 500.83L317.60 502.97L316.16 505.09L313.01 507.64L310.05 507.40L307.27 509.35L306.27 510.58L299.19 514.04L298.90 514.96L300.00 516.27L300.45 518.53L302.79 518.60L301.62 520.25L297.12 523.07L295.73 525.12L296.07 527.01L298.90 530.04L299.73 532.25L301.05 531.68L301.93 532.99L301.40 534.62L304.48 534.60L305.35 535.13L305.56 537.83L304.49 540.97L305.97 543.99L306.12 548.39L306.80 550.78L305.29 553.02L304.63 555.12L304.85 556.87L306.47 560.05L306.64 565.11L306.12 566.32L306.74 568.23L310.01 571.82L310.47 572.98L312.17 573.79L312.50 574.94L313.83 575.06L315.89 577.28L318.20 576.00L323.17 575.10L326.51 575.70L331.28 574.05L333.92 575.04L336.03 573.69L337.29 573.62L339.00 574.74L339.52 574.09L339.55 570.45L341.20 570.06L341.90 572.27L346.71 573.86L348.97 572.84L350.58 571.32L357.39 573.65L359.14 572.89L360.29 573.16L360.54 571.75L362.19 571.09L363.48 572.77L368.36 571.57L370.02 571.59L373.21 573.62L374.43 572.83L376.48 579.17L377.82 580.08L377.72 581.14L375.74 582.24L367.99 581.83L365.34 582.21L362.81 583.48L361.82 585.43L357.50 591.24L354.75 596.38L351.88 602.34L351.77 604.72L352.84 607.27L351.72 609.09L351.18 611.47L351.29 615.04L350.27 617.06L347.62 618.18L347.54 620.59L345.63 622.74Z" fill="#6d9986" tabindex="0" role="button" aria-label="合肥市，庐州古韵，科创之城。点击查看城市介绍。"><title>合肥市 · 点击查看介绍</title></path>
+          <path class="city" data-city="wuhu" d="M584.25 614.42L578.48 616.25L575.61 616.09L572.25 616.73L571.87 615.17L569.31 611.96L568.75 609.69L569.69 607.20L567.63 603.87L564.58 601.04L564.88 597.60L562.80 596.82L559.88 597.29L558.94 599.21L556.87 598.99L555.54 597.96L553.13 599.04L552.92 596.97L551.87 593.44L550.94 591.65L550.14 588.18L551.19 587.25L551.19 585.27L549.51 583.80L548.77 580.98L545.48 579.23L543.08 574.96L538.88 586.64L537.73 588.64L535.68 590.26L534.38 590.29L533.99 588.67L534.30 585.05L535.06 583.10L533.48 581.15L533.30 579.45L532.43 579.23L532.30 581.07L530.65 580.69L527.09 578.82L527.41 577.93L524.49 575.52L524.23 574.77L520.03 576.17L517.51 575.99L516.88 574.53L515.00 573.99L512.43 575.09L510.86 576.76L507.61 577.64L507.84 580.72L509.06 584.51L509.90 586.08L508.50 585.51L506.53 587.28L507.11 591.45L509.53 591.50L512.92 592.80L511.67 595.53L512.54 597.32L512.03 598.06L486.48 591.23L484.78 592.21L484.05 591.40L484.26 589.56L483.27 588.26L483.12 586.54L484.87 586.34L485.85 585.01L482.34 582.92L482.69 580.89L479.77 582.70L478.11 582.57L475.70 580.18L473.11 579.89L471.64 580.37L465.76 583.42L462.95 583.01L460.69 584.11L457.79 583.46L455.23 583.84L453.77 586.48L452.10 585.49L449.67 586.76L446.74 586.15L444.54 587.74L443.27 592.44L442.67 596.64L440.35 599.39L437.26 606.65L436.04 611.63L433.99 615.73L431.43 616.24L429.41 619.43L424.93 620.24L425.41 622.89L425.07 624.22L423.35 626.79L422.52 629.94L420.26 631.51L418.04 632.45L419.10 633.89L422.41 636.49L422.97 639.63L422.03 642.04L418.86 643.46L418.34 646.74L416.89 647.27L416.13 648.73L417.89 650.71L418.55 653.46L417.88 655.68L416.11 659.02L413.51 659.16L412.13 659.92L411.97 660.98L413.39 661.99L415.44 666.59L417.74 668.13L419.76 668.57L419.16 671.75L421.54 672.80L423.29 671.66L424.46 672.62L426.60 672.26L427.93 670.98L432.90 672.02L436.46 674.52L436.55 675.78L437.91 677.57L438.89 674.80L438.69 672.97L441.22 672.60L441.68 669.74L442.79 669.10L443.77 666.76L443.34 665.44L444.83 665.24L446.40 663.88L446.80 665.44L448.32 665.47L451.40 657.20L453.62 650.54L455.65 647.88L459.48 644.72L463.09 643.09L465.85 642.90L468.66 644.13L470.19 646.05L471.68 652.29L472.78 653.62L476.58 655.35L478.29 655.47L481.70 654.26L483.85 652.58L485.64 653.38L488.63 653.64L490.99 655.98L489.19 659.32L489.80 661.21L491.58 661.92L492.55 664.21L498.20 665.22L500.06 668.26L502.10 669.69L503.22 672.22L506.11 672.75L508.90 672.27L511.14 673.44L511.32 675.38L510.23 678.93L510.48 680.49L511.98 683.26L510.86 684.27L507.51 684.15L502.33 687.02L499.44 690.29L496.13 689.31L493.59 691.86L494.84 692.27L493.88 694.33L491.33 693.92L489.74 691.03L486.81 692.37L484.90 694.24L486.25 696.83L482.89 701.98L483.19 702.70L485.38 702.86L487.40 705.47L492.25 706.31L495.36 708.99L498.25 711.03L501.87 712.42L504.77 715.79L506.13 716.06L506.65 718.92L507.59 719.10L506.29 720.74L503.30 725.56L502.40 727.57L502.60 729.32L507.87 727.43L510.33 724.94L512.92 720.60L517.95 718.77L519.84 717.51L521.44 717.55L523.45 718.54L527.08 716.69L528.71 716.95L530.85 719.15L532.57 719.47L533.96 718.27L531.42 716.38L531.06 715.26L528.27 712.83L528.41 711.67L531.04 709.26L531.53 706.61L532.95 705.92L532.22 702.90L532.57 701.66L533.73 702.68L532.82 700.63L534.58 698.06L537.45 697.18L538.83 697.60L540.49 693.90L543.06 693.94L547.93 693.39L550.12 694.71L551.93 697.54L550.91 699.42L549.39 699.46L551.18 702.44L553.35 701.67L554.63 703.53L554.11 705.44L558.31 707.64L558.38 705.19L558.97 703.52L561.63 701.57L561.67 700.02L560.56 698.38L558.60 697.92L557.98 696.01L559.88 694.41L559.75 693.40L560.95 691.46L559.09 690.73L557.89 691.86L558.86 689.57L557.12 688.82L557.65 687.65L559.13 688.45L560.18 687.37L559.70 684.50L562.91 682.07L562.56 679.54L560.58 677.40L563.45 678.00L562.72 675.66L568.70 672.27L571.64 671.99L573.33 670.33L573.14 668.10L571.83 664.37L573.59 662.67L575.33 658.90L576.45 659.53L576.04 662.33L576.90 663.69L579.91 663.62L583.25 660.81L585.21 657.76L588.04 654.21L587.08 653.09L587.19 651.66L588.46 650.51L588.10 647.81L589.17 645.54L590.88 643.67L593.13 642.21L595.52 641.30L593.29 637.05L591.91 636.53L589.86 634.43L588.09 630.11L585.92 628.24L585.24 626.16L582.85 624.66L583.52 621.98L584.72 620.47L584.93 616.83L584.25 614.42Z" fill="#7492ad" tabindex="0" role="button" aria-label="芜湖市，江东名邑，长江明珠。点击查看城市介绍。"><title>芜湖市 · 点击查看介绍</title></path>
+          <path class="city" data-city="bengbu" d="M302.07 333.15L305.33 333.99L305.83 335.27L306.87 334.39L309.31 335.13L310.19 337.24L312.23 337.67L314.13 339.15L316.87 339.70L317.48 340.44L316.54 341.99L323.59 347.76L324.62 347.24L325.96 347.98L325.80 349.49L329.63 352.57L329.30 353.78L331.35 353.92L335.15 356.85L339.70 358.24L341.18 359.04L343.64 362.81L345.20 362.69L345.11 364.49L345.83 364.53L346.78 367.06L348.89 367.61L347.32 369.05L347.70 369.95L350.65 368.60L351.88 369.71L354.24 367.94L352.89 366.67L353.31 365.11L359.29 362.74L362.36 363.86L364.25 364.11L364.45 365.84L367.24 365.63L367.63 366.52L369.67 366.74L370.66 364.89L372.34 363.74L374.94 360.25L376.83 356.37L378.47 354.45L379.89 355.28L382.07 353.90L382.74 352.41L386.08 352.15L387.01 350.54L388.66 350.95L392.42 350.37L394.02 348.48L395.00 348.89L399.04 349.12L401.86 349.89L402.90 347.36L404.38 348.11L408.13 348.25L410.10 348.99L411.28 347.99L413.05 344.23L415.54 343.52L416.33 342.40L416.13 340.51L414.28 338.56L415.09 336.63L416.15 332.42L418.53 331.36L418.47 326.50L418.92 324.15L421.46 326.06L424.41 329.21L425.62 331.00L427.55 332.23L429.53 334.26L432.97 333.81L435.80 335.98L437.47 336.25L439.57 334.85L440.65 330.51L442.92 326.11L443.46 323.39L444.88 320.35L446.43 319.68L449.15 320.60L450.51 319.09L452.90 313.72L454.48 312.59L456.56 312.96L458.42 315.39L461.69 315.92L467.26 314.56L470.18 313.52L471.14 312.72L472.16 314.72L471.71 315.29L472.73 317.39L472.38 318.39L470.10 320.31L472.99 322.48L475.07 322.93L478.62 319.31L480.11 318.28L483.46 320.45L485.25 318.76L488.32 320.40L489.44 320.49L492.39 318.24L493.18 316.10L490.46 314.81L488.53 315.35L487.54 313.75L488.41 311.21L490.43 310.15L492.58 307.98L496.83 307.85L498.45 306.76L497.32 303.92L498.72 300.47L498.62 297.38L495.31 299.17L494.33 298.76L495.17 297.62L497.75 297.38L498.12 296.47L494.66 296.82L493.39 297.37L493.22 294.41L491.55 293.78L490.34 292.28L488.63 291.29L488.00 289.85L486.18 289.67L485.06 285.98L486.83 285.18L486.81 284.20L484.46 281.61L480.99 282.00L479.31 281.81L478.81 280.21L480.14 277.12L478.88 275.31L483.43 272.78L485.29 269.46L485.70 265.32L486.74 263.12L484.69 262.92L483.76 263.62L480.74 263.83L475.44 263.62L474.43 261.13L472.78 261.85L472.26 263.53L468.82 263.77L467.09 264.51L466.26 268.08L465.24 269.65L462.04 268.99L459.80 269.48L459.62 271.75L457.41 272.72L454.78 271.88L449.26 273.15L447.84 271.46L445.26 271.78L442.63 270.27L442.27 267.97L440.35 267.11L438.98 264.00L435.34 263.03L433.71 261.27L432.51 260.98L430.40 261.94L427.50 264.79L425.79 264.42L423.76 263.07L420.17 264.01L418.56 261.96L415.41 260.85L412.02 260.94L410.97 260.56L404.58 255.14L403.19 251.52L399.90 247.22L398.40 241.77L394.56 239.22L391.59 238.41L387.95 238.33L386.37 235.77L379.37 234.70L376.60 233.92L376.44 235.93L374.88 238.82L371.44 242.32L370.67 247.45L364.35 241.54L363.63 244.75L361.41 244.23L359.81 245.53L359.52 247.63L360.67 248.09L362.01 249.83L360.49 253.70L359.33 254.80L356.66 252.77L356.87 251.82L354.82 251.81L352.98 250.36L349.81 252.85L348.42 256.46L350.13 256.02L353.36 257.49L355.08 259.49L354.63 260.73L352.76 261.12L351.90 262.95L350.34 263.14L350.44 265.09L354.42 266.03L355.48 267.49L354.92 271.45L345.91 270.00L344.62 269.45L342.72 272.43L341.27 272.64L338.93 272.01L337.16 272.57L334.07 271.15L331.77 268.60L329.64 267.61L326.87 268.89L323.10 268.89L321.77 271.24L318.85 272.03L317.57 271.43L314.52 268.45L312.59 267.61L311.80 268.15L311.59 273.00L312.32 273.06L313.45 277.44L315.33 280.82L315.42 284.28L314.66 285.67L313.76 293.87L312.29 293.76L310.32 291.52L308.15 294.50L307.30 293.90L305.18 296.33L304.87 298.09L306.31 300.90L306.32 305.08L304.04 307.71L303.97 310.25L304.54 311.59L308.81 313.84L311.84 315.13L313.71 317.06L313.89 318.53L313.07 321.59L311.88 320.78L311.35 321.80L308.20 321.38L308.31 320.22L306.93 320.72L306.85 319.74L304.93 320.32L304.85 322.69L303.81 324.43L302.77 327.76L303.10 329.91L302.07 333.15Z" fill="#bd9652" tabindex="0" role="button" aria-label="蚌埠市，淮上明珠，铁路枢纽。点击查看城市介绍。"><title>蚌埠市 · 点击查看介绍</title></path>
+          <path class="city" data-city="huainan" d="M307.27 509.35L310.05 507.40L313.01 507.64L316.16 505.09L317.60 502.97L320.23 500.83L321.11 499.29L323.15 498.44L329.29 497.35L331.70 495.81L330.49 494.21L329.70 491.65L332.14 489.19L334.59 490.12L335.39 491.71L336.68 491.16L338.77 491.57L340.40 492.88L340.39 495.13L343.94 493.81L345.29 492.78L346.88 489.79L347.75 486.85L347.80 485.02L345.38 482.80L344.35 481.10L343.87 477.45L342.40 474.07L340.54 473.60L338.83 471.78L337.72 467.62L338.44 465.94L341.98 465.93L343.69 464.73L344.48 463.22L344.61 460.93L341.54 458.85L341.35 457.19L342.89 455.40L347.83 454.99L349.66 453.35L351.50 447.87L350.78 445.48L349.36 444.78L347.68 446.13L346.53 445.29L346.14 442.95L347.89 438.53L349.31 437.15L348.54 435.88L347.26 436.32L346.46 434.73L347.31 433.74L347.59 427.98L347.10 427.24L343.49 427.64L341.56 427.09L342.24 423.92L344.80 422.32L346.72 421.94L347.99 419.41L347.89 417.99L350.74 414.07L351.29 412.73L350.90 410.37L351.86 408.82L352.58 405.38L351.69 404.52L353.35 402.11L354.78 401.85L357.15 402.56L357.90 403.59L359.64 403.13L361.40 403.85L363.04 402.78L364.07 401.18L365.44 401.45L370.43 401.49L370.74 400.04L371.94 399.32L372.42 396.94L370.14 393.56L369.67 388.56L366.59 380.80L366.22 378.87L364.58 376.29L364.74 375.02L367.97 373.32L368.77 369.83L371.02 367.85L369.67 366.74L367.63 366.52L367.24 365.63L364.45 365.84L364.25 364.11L362.36 363.86L359.29 362.74L353.31 365.11L352.89 366.67L354.24 367.94L351.88 369.71L350.65 368.60L347.70 369.95L347.32 369.05L348.89 367.61L346.78 367.06L345.83 364.53L345.11 364.49L345.20 362.69L343.64 362.81L341.18 359.04L339.70 358.24L335.15 356.85L331.35 353.92L329.30 353.78L329.63 352.57L325.80 349.49L325.96 347.98L324.62 347.24L323.59 347.76L316.54 341.99L317.48 340.44L316.87 339.70L314.13 339.15L312.23 337.67L310.19 337.24L309.31 335.13L306.87 334.39L305.83 335.27L305.33 333.99L302.07 333.15L297.66 331.71L294.53 331.30L286.24 330.93L259.58 323.41L250.18 319.96L249.33 321.87L249.31 326.16L248.61 326.87L247.65 329.99L247.75 331.06L250.66 334.36L251.86 336.25L251.97 339.62L251.95 340.86L250.79 343.60L251.29 345.55L253.65 346.19L255.98 345.41L259.46 347.89L258.58 351.69L259.99 353.02L259.00 353.84L258.84 355.40L259.93 357.32L259.73 362.19L259.08 364.34L259.41 367.04L260.90 367.58L260.57 370.18L259.25 371.61L259.40 373.10L261.61 376.05L265.56 376.57L265.88 375.90L267.77 376.04L268.40 379.18L271.31 380.06L272.63 385.14L273.58 386.11L273.02 387.39L273.35 389.56L275.66 390.06L275.50 392.52L282.41 391.98L285.09 392.95L286.40 394.37L287.29 398.06L284.17 399.63L277.23 399.74L270.94 405.79L270.77 409.73L268.92 414.21L266.68 413.40L266.05 416.33L265.22 417.89L264.54 423.54L266.30 425.43L265.30 426.78L264.68 428.99L265.13 431.59L268.41 434.34L270.28 439.53L270.61 443.32L271.33 447.10L270.66 448.76L271.50 452.32L269.70 455.30L267.61 456.69L269.75 458.88L269.96 460.32L268.82 462.00L269.73 465.68L271.36 467.71L271.89 470.74L271.08 473.82L272.32 477.03L274.71 480.33L273.92 482.26L275.08 486.71L274.33 489.11L277.90 490.44L280.20 490.74L284.00 493.82L292.09 497.81L293.59 498.10L294.17 499.53L293.96 501.39L293.96 508.62L295.03 510.71L297.17 510.42L300.23 508.41L303.95 508.01L307.27 509.35Z" fill="#c09a57" tabindex="0" role="button" aria-label="淮南市，八公山下，豆腐故里。点击查看城市介绍。"><title>淮南市 · 点击查看介绍</title></path>
+          <path class="city" data-city="maanshan" d="M617.57 580.56L616.70 584.27L615.63 586.99L614.98 590.13L615.51 594.17L612.79 599.20L612.24 598.96L609.61 601.80L605.31 603.28L603.01 603.35L601.06 604.30L600.49 603.82L600.92 601.49L600.19 599.99L598.61 600.50L597.31 602.64L595.74 607.47L593.68 611.30L592.75 611.47L591.19 613.88L589.44 613.67L587.91 614.48L584.25 614.42L578.48 616.25L575.61 616.09L572.25 616.73L571.87 615.17L569.31 611.96L568.75 609.69L569.69 607.20L567.63 603.87L564.58 601.04L564.88 597.60L562.80 596.82L559.88 597.29L558.94 599.21L556.87 598.99L555.54 597.96L553.13 599.04L552.92 596.97L551.87 593.44L550.94 591.65L550.14 588.18L551.19 587.25L551.19 585.27L549.51 583.80L548.77 580.98L545.48 579.23L543.08 574.96L538.88 586.64L537.73 588.64L535.68 590.26L534.38 590.29L533.99 588.67L534.30 585.05L535.06 583.10L533.48 581.15L533.30 579.45L532.43 579.23L532.30 581.07L530.65 580.69L527.09 578.82L527.41 577.93L524.49 575.52L524.23 574.77L520.03 576.17L517.51 575.99L516.88 574.53L515.00 573.99L512.43 575.09L510.86 576.76L507.61 577.64L507.84 580.72L509.06 584.51L509.90 586.08L508.50 585.51L506.53 587.28L507.11 591.45L509.53 591.50L512.92 592.80L511.67 595.53L512.54 597.32L512.03 598.06L486.48 591.23L484.78 592.21L484.05 591.40L484.26 589.56L483.27 588.26L483.12 586.54L484.87 586.34L485.85 585.01L482.34 582.92L482.69 580.89L480.78 577.15L478.90 576.24L480.74 574.19L479.20 573.55L477.20 573.93L475.99 572.06L474.30 572.47L474.15 570.77L475.13 569.33L477.24 568.77L478.27 566.64L477.43 565.50L478.38 565.18L477.80 562.49L478.55 561.46L478.17 560.13L479.13 558.60L482.30 558.57L482.01 560.38L483.65 559.72L483.85 556.61L483.22 555.97L482.47 552.99L483.02 552.50L480.32 550.91L478.84 550.91L479.17 549.57L477.82 549.10L475.02 545.25L475.00 543.29L476.03 540.04L475.33 537.23L476.72 535.31L474.47 534.27L473.96 532.52L475.06 530.79L473.29 526.59L474.26 522.99L475.12 521.55L478.34 519.03L479.21 516.70L480.70 510.23L482.54 511.04L486.06 514.45L494.35 518.32L496.85 518.49L498.47 519.81L500.11 519.31L500.40 515.21L503.80 512.79L505.52 510.25L507.17 510.73L509.48 509.93L512.91 511.29L514.48 509.98L515.28 507.99L517.73 506.51L520.05 506.93L522.94 503.67L525.48 501.87L530.39 497.47L532.55 496.50L532.62 494.34L534.36 490.55L536.90 488.58L538.99 487.85L540.41 486.14L544.33 483.92L545.70 485.61L544.47 488.25L546.75 490.75L545.01 491.90L545.20 495.80L544.64 496.89L543.10 497.15L543.47 499.66L541.97 501.58L542.04 503.65L541.29 506.09L542.90 506.92L544.47 508.74L546.96 508.88L548.86 511.06L552.42 512.58L554.21 513.97L557.15 514.84L556.38 516.70L556.33 518.58L557.61 519.91L559.83 521.15L561.91 521.40L559.18 529.42L558.59 532.38L561.68 532.43L562.80 534.58L564.68 535.21L566.18 534.30L567.04 535.29L566.90 537.40L564.46 538.49L565.62 538.62L567.84 540.39L568.56 539.72L569.61 540.81L571.74 537.94L572.27 538.86L574.89 538.26L576.01 536.60L577.27 536.04L578.69 537.28L579.88 535.65L582.02 535.86L583.01 537.50L582.08 538.27L583.55 539.06L583.83 540.73L587.25 541.00L588.37 541.64L588.73 543.15L590.25 544.32L587.76 546.54L586.68 546.58L586.39 547.95L583.97 550.17L582.80 549.44L582.25 550.91L582.94 552.99L582.31 554.61L584.40 556.15L586.75 556.24L588.36 556.99L589.85 556.39L593.07 556.43L593.44 558.51L594.80 557.33L595.62 557.69L597.22 553.48L597.11 551.43L598.10 549.81L600.62 549.85L601.48 548.96L605.14 551.77L602.79 553.48L603.74 555.21L604.70 558.37L605.68 559.89L607.41 559.94L608.15 558.33L610.25 558.02L613.87 559.12L615.37 561.29L615.67 563.38L614.87 564.69L616.63 565.06L616.05 567.79L617.32 569.37L616.31 571.59L616.11 575.06L617.61 575.14L617.89 577.32L617.57 580.56Z" fill="#7896b0" tabindex="0" role="button" aria-label="马鞍山市，诗城钢城，长江采石。点击查看城市介绍。"><title>马鞍山市 · 点击查看介绍</title></path>
+          <path class="city" data-city="huaibei" d="M251.84 185.16L253.96 187.36L253.71 188.72L258.01 188.78L257.64 192.68L261.58 193.64L262.10 196.14L264.43 198.05L264.31 199.90L265.13 199.92L266.34 202.79L266.30 205.02L265.37 205.43L264.68 207.47L268.01 211.46L268.26 213.59L272.41 214.35L273.89 217.25L274.96 217.45L275.02 218.85L273.42 219.02L274.50 222.06L272.14 222.83L271.20 225.28L271.63 226.57L271.09 228.90L272.54 229.85L273.19 231.91L272.44 234.53L272.67 237.43L274.43 239.75L277.48 240.03L279.51 239.18L281.20 237.64L284.02 237.33L285.59 236.70L287.49 236.79L288.36 238.07L291.79 238.59L294.94 238.00L296.83 238.68L300.15 242.73L303.57 243.01L305.16 244.85L307.18 245.99L312.20 247.54L311.01 250.99L311.64 253.91L310.19 258.44L310.66 259.34L309.67 260.65L310.11 262.85L309.91 265.41L311.80 268.15L312.59 267.61L314.52 268.45L317.57 271.43L318.85 272.03L321.77 271.24L323.10 268.89L326.87 268.89L329.64 267.61L330.52 265.86L330.21 264.55L328.90 263.89L329.31 262.88L328.25 261.11L329.76 260.76L330.34 258.64L331.01 258.40L332.51 255.42L334.61 255.93L334.77 254.98L336.99 252.90L335.66 251.63L336.40 249.37L335.78 248.21L336.68 246.60L335.93 245.79L336.01 244.01L334.84 242.45L332.09 242.23L330.53 240.75L330.43 239.25L326.93 238.16L327.05 237.25L329.08 235.42L326.88 233.15L328.44 227.45L330.30 226.59L330.36 224.77L331.64 220.28L328.44 220.63L326.13 221.71L322.35 218.67L321.09 216.20L320.29 212.66L321.49 210.40L322.06 208.13L321.74 206.14L322.34 203.72L323.38 203.56L327.14 204.59L328.72 204.03L330.52 204.20L330.35 199.04L331.97 198.67L330.92 192.74L331.25 191.21L333.66 191.56L332.66 189.77L332.41 186.78L333.59 183.95L333.49 180.71L333.75 176.61L334.75 173.96L334.89 168.33L335.43 166.14L338.84 165.08L340.47 162.45L339.49 160.59L340.82 158.27L339.60 155.77L339.61 154.22L338.51 153.66L336.62 154.21L334.67 153.19L337.58 148.70L337.08 147.82L337.75 146.35L336.40 145.22L336.72 143.16L336.07 142.59L333.21 142.22L333.58 141.17L333.26 138.54L335.26 136.47L336.94 133.91L334.37 134.12L330.55 133.63L330.41 131.80L327.52 130.45L326.56 130.58L324.57 133.26L322.40 134.78L318.97 133.30L318.26 135.51L316.44 136.12L315.71 137.39L313.96 134.97L314.26 132.68L312.43 134.25L313.23 135.83L312.74 136.51L311.80 141.98L312.64 145.45L311.96 148.68L310.96 147.01L309.18 146.33L309.23 145.62L304.53 145.34L303.55 144.64L301.86 145.50L301.33 144.79L298.47 145.13L297.40 145.95L295.34 144.80L293.74 145.83L291.31 144.44L289.30 143.88L286.09 144.55L282.76 143.90L282.60 146.22L283.20 147.61L286.54 150.36L287.06 151.56L289.20 152.21L289.53 154.68L288.01 156.44L288.86 159.73L287.80 161.94L288.41 166.22L286.15 166.89L283.88 165.84L281.71 164.19L279.44 163.47L277.30 163.49L276.02 164.62L275.55 166.94L276.03 168.12L274.31 167.94L273.22 169.38L272.87 167.99L271.16 168.29L270.57 169.92L268.23 169.70L267.73 171.03L265.23 170.14L263.63 171.61L261.60 171.85L260.55 174.10L258.25 174.17L257.61 179.66L258.19 181.70L257.55 183.04L255.84 182.80L253.98 181.28L251.84 185.16ZM345.53 118.72L344.61 118.56L345.42 115.32L346.82 112.69L347.83 111.95L348.38 109.22L347.49 108.66L348.17 105.61L347.07 104.52L345.46 105.55L346.05 107.43L345.32 109.25L344.08 110.58L342.30 109.54L342.04 107.24L340.11 109.00L339.25 112.05L340.21 111.85L337.99 113.67L338.31 117.74L339.94 118.43L337.98 120.58L338.31 118.62L337.29 118.31L336.71 120.81L338.27 123.81L341.15 122.94L341.61 121.37L342.79 121.70L344.32 119.59L345.56 120.62L345.53 118.72Z" fill="#c6a363" tabindex="0" role="button" aria-label="淮北市，运河故里，能源之城。点击查看城市介绍。"><title>淮北市 · 点击查看介绍</title></path>
+          <path class="city" data-city="tongling" d="M363.84 654.65L362.91 657.09L362.06 657.80L362.04 660.38L361.10 662.18L361.63 664.67L360.69 665.93L359.19 666.02L357.25 664.86L354.68 665.44L354.87 669.17L353.03 671.54L352.70 673.81L353.59 679.55L355.06 686.98L356.50 697.05L356.32 703.44L355.73 707.48L358.11 709.45L359.21 712.16L364.83 717.66L367.05 718.77L368.40 718.00L368.88 719.41L370.32 718.82L371.00 720.53L376.35 720.82L373.79 721.48L372.17 722.85L371.34 724.42L371.07 727.05L372.01 730.39L372.78 731.16L380.94 726.66L386.35 723.17L391.33 721.06L394.77 720.14L398.82 720.01L399.55 720.76L402.93 722.11L407.15 722.78L409.99 722.79L412.19 721.48L413.39 719.72L415.40 714.52L425.63 709.33L435.71 705.88L439.39 705.03L443.97 700.68L443.49 703.57L446.78 703.37L449.96 700.58L451.28 701.32L451.93 703.17L450.83 705.55L452.51 707.05L452.26 708.47L455.74 708.04L456.01 710.53L457.84 710.76L458.85 709.19L460.71 708.77L464.61 706.40L465.20 703.83L469.09 700.46L470.74 699.69L473.55 699.40L475.41 698.44L478.17 695.63L479.45 696.09L480.96 698.78L484.90 694.24L486.81 692.37L489.74 691.03L491.33 693.92L493.88 694.33L494.84 692.27L493.59 691.86L496.13 689.31L499.44 690.29L502.33 687.02L507.51 684.15L510.86 684.27L511.98 683.26L510.48 680.49L510.23 678.93L511.32 675.38L511.14 673.44L508.90 672.27L506.11 672.75L503.22 672.22L502.10 669.69L500.06 668.26L498.20 665.22L492.55 664.21L491.58 661.92L489.80 661.21L489.19 659.32L490.99 655.98L488.63 653.64L485.64 653.38L483.85 652.58L481.70 654.26L478.29 655.47L476.58 655.35L472.78 653.62L471.68 652.29L470.19 646.05L468.66 644.13L465.85 642.90L463.09 643.09L459.48 644.72L455.65 647.88L453.62 650.54L451.40 657.20L448.32 665.47L446.80 665.44L446.40 663.88L444.83 665.24L443.34 665.44L443.77 666.76L442.79 669.10L441.68 669.74L441.22 672.60L438.69 672.97L438.89 674.80L437.91 677.57L436.55 675.78L436.46 674.52L432.90 672.02L427.93 670.98L426.60 672.26L424.46 672.62L423.29 671.66L421.54 672.80L419.16 671.75L419.76 668.57L417.74 668.13L415.44 666.59L413.57 667.88L408.35 669.10L406.73 670.18L405.75 672.74L401.55 671.12L397.51 673.28L397.19 675.52L395.45 675.68L394.53 674.28L395.16 673.48L393.26 669.28L392.14 668.55L390.51 669.33L388.60 669.05L387.02 667.22L385.89 667.19L384.66 669.69L382.78 670.23L381.62 669.83L377.18 665.24L374.58 663.32L374.00 660.77L372.04 657.26L368.88 655.12L366.64 652.04L363.84 654.65ZM384.54 756.00L383.51 757.89L381.20 759.81L378.60 760.97L378.43 761.75L380.14 763.88L378.96 765.82L377.98 766.12L377.90 767.55L380.34 767.61L382.18 768.60L384.85 766.71L383.98 764.01L385.75 763.17L387.13 760.39L388.17 760.33L388.87 758.87L388.56 755.93L387.86 755.04L386.06 754.78L384.54 756.00ZM335.12 731.52L337.52 728.92L336.10 726.59L334.57 726.42L333.76 726.74L331.27 725.85L329.45 727.07L329.24 728.47L331.29 730.90L335.12 731.52Z" fill="#809db7" tabindex="0" role="button" aria-label="铜陵市，古铜都，皖江门户。点击查看城市介绍。"><title>铜陵市 · 点击查看介绍</title></path>
+          <path class="city" data-city="anqing" d="M326.69 778.50L327.72 782.73L329.21 785.95L330.43 789.99L330.20 793.02L329.22 795.71L325.13 798.73L321.43 803.39L320.34 809.67L317.67 814.97L314.00 820.46L307.37 827.62L303.78 830.47L299.81 831.05L294.73 828.15L291.96 827.09L288.40 827.16L283.76 828.14L281.64 830.04L280.09 832.37L277.93 837.89L277.91 842.25L276.93 849.16L276.08 853.49L275.08 856.00L273.55 857.42L271.20 858.14L264.49 858.07L262.71 858.37L258.90 861.20L251.66 865.37L246.84 867.47L244.40 868.85L241.42 871.56L239.88 873.47L235.25 876.95L232.41 878.14L231.26 877.95L227.41 872.10L224.58 870.26L221.53 869.99L218.59 870.28L213.87 871.66L213.40 867.36L213.78 861.61L212.49 857.47L209.30 853.05L206.60 848.91L205.46 847.99L204.86 845.58L205.98 843.55L205.51 838.61L207.08 835.72L207.47 834.12L205.76 830.47L205.65 828.92L206.47 827.23L206.31 823.82L206.99 821.30L206.50 818.53L205.03 817.26L203.29 814.13L202.34 810.96L202.24 809.03L203.40 806.86L203.46 804.56L200.78 801.60L198.67 801.06L197.92 798.86L195.81 797.17L193.25 796.22L192.38 794.13L191.86 789.98L191.21 789.16L187.90 787.50L185.01 787.22L182.54 788.21L179.98 786.69L179.87 785.69L181.43 784.22L181.77 782.46L178.81 778.61L177.10 774.65L179.46 771.48L180.68 771.31L182.48 768.27L183.87 767.56L184.93 768.03L186.10 766.74L182.38 765.93L181.61 763.49L178.56 761.98L178.45 760.79L179.44 759.03L179.04 756.86L180.75 752.62L182.24 751.19L180.08 749.53L179.25 747.22L177.53 746.43L176.85 743.49L175.73 741.77L176.25 740.23L174.36 738.56L173.05 738.28L171.76 736.14L168.76 735.40L168.18 737.14L167.45 736.83L165.78 733.77L166.83 732.17L166.09 729.09L164.45 727.80L164.19 726.32L161.02 724.54L160.58 722.98L159.13 721.64L159.85 720.12L159.57 717.84L161.16 714.15L162.12 710.19L163.57 708.88L166.18 708.85L167.59 710.37L169.73 709.38L172.20 709.32L172.62 707.47L174.68 706.29L174.84 704.86L173.25 704.46L174.31 702.13L174.00 699.09L171.80 696.88L171.90 694.68L174.02 692.26L174.28 690.70L175.94 689.88L177.22 688.34L181.20 686.66L184.08 686.34L184.63 684.01L189.69 681.04L190.53 679.06L193.05 678.15L195.46 675.90L197.65 675.22L199.08 675.65L199.82 674.49L204.55 674.69L204.25 672.53L202.87 668.06L202.67 664.98L200.79 664.67L201.59 659.88L201.50 658.60L203.76 655.05L207.62 652.87L207.73 651.58L209.37 650.83L211.47 652.14L217.17 649.99L218.43 650.28L220.64 652.75L221.00 655.94L223.87 657.16L226.69 656.49L229.77 654.09L232.41 652.92L233.45 649.85L237.05 647.31L238.59 645.86L239.51 642.87L242.58 641.97L244.35 640.79L244.68 638.85L246.82 637.05L249.68 638.54L252.11 639.11L255.01 639.10L257.45 642.22L258.30 644.95L261.62 645.38L263.06 643.70L264.78 643.47L266.97 641.42L267.73 642.69L268.67 642.51L270.32 639.45L273.10 636.97L273.84 635.68L275.21 636.06L275.76 637.37L275.21 638.45L276.02 641.63L275.66 645.83L276.66 647.95L274.71 651.04L273.14 654.69L272.37 657.38L272.56 659.53L272.00 661.07L271.95 663.55L273.86 663.67L276.32 661.19L276.82 659.30L277.89 658.22L280.92 658.94L281.34 657.81L283.83 655.53L284.20 654.39L285.44 654.35L289.05 656.98L290.07 658.14L291.76 656.95L294.41 657.53L295.16 658.75L298.25 659.70L300.19 656.86L302.23 656.12L304.57 656.64L305.83 655.35L308.23 655.06L309.85 655.88L312.39 652.95L313.81 652.40L315.83 649.66L317.88 649.10L317.71 647.55L318.44 645.60L320.66 644.69L322.68 645.11L325.46 644.08L329.05 640.98L329.54 639.46L332.65 639.17L333.09 635.54L334.14 634.43L335.49 630.03L338.16 624.83L340.63 622.76L341.88 620.82L343.28 620.97L345.63 622.74L347.10 623.46L348.99 626.42L351.37 626.16L352.52 628.80L355.60 634.20L356.96 637.82L358.83 641.46L358.81 644.80L358.10 645.64L358.93 649.56L358.12 652.46L360.87 654.52L363.84 654.65L362.91 657.09L362.06 657.80L362.04 660.38L361.10 662.18L361.63 664.67L360.69 665.93L359.19 666.02L357.25 664.86L354.68 665.44L354.87 669.17L353.03 671.54L352.70 673.81L353.59 679.55L355.06 686.98L356.50 697.05L356.32 703.44L355.73 707.48L358.11 709.45L359.21 712.16L364.83 717.66L367.05 718.77L368.40 718.00L368.88 719.41L370.32 718.82L371.00 720.53L376.35 720.82L373.79 721.48L372.17 722.85L371.34 724.42L371.07 727.05L372.01 730.39L372.78 731.16L372.89 732.89L377.30 738.32L377.94 742.71L376.70 747.18L376.33 749.79L375.61 752.96L374.13 755.69L372.24 757.78L369.12 759.70L364.98 758.15L360.74 755.16L357.28 754.59L344.63 754.78L342.43 755.64L338.89 758.85L337.30 761.05L333.61 763.69L331.43 764.13L328.33 766.69L326.37 764.78L325.09 765.72L325.02 768.56L324.48 769.89L325.30 774.29L326.69 778.50ZM334.57 726.42L333.76 726.74L331.27 725.85L329.45 727.07L329.24 728.47L331.29 730.90L335.12 731.52L337.52 728.92L336.10 726.59L334.57 726.42Z" fill="#76a08d" tabindex="0" role="button" aria-label="安庆市，黄梅故里，桐城文章。点击查看城市介绍。"><title>安庆市 · 点击查看介绍</title></path>
+          <path class="city" data-city="huangshan" d="M615.39 822.82L612.63 821.25L608.37 822.59L603.80 826.82L600.57 827.09L598.61 826.42L596.93 824.32L595.05 828.21L590.27 830.55L589.83 834.03L588.94 835.36L586.04 836.29L583.39 836.14L580.02 837.52L578.03 840.07L578.63 840.84L577.96 843.77L576.76 845.30L573.47 845.87L572.22 846.66L570.70 849.47L568.36 849.88L564.85 846.03L564.27 844.68L564.81 841.68L564.21 840.59L562.58 840.68L562.06 841.88L561.02 839.35L560.93 837.24L563.19 835.08L563.27 833.64L560.40 827.89L557.94 827.13L556.65 826.11L553.86 822.61L549.13 823.53L547.18 823.13L545.76 821.98L544.26 823.56L542.21 823.11L539.93 821.00L540.20 819.27L538.81 817.13L537.61 811.66L535.75 810.03L533.52 806.92L530.47 805.83L530.36 802.45L529.86 800.05L527.71 799.13L527.10 798.24L526.94 795.38L527.64 793.65L530.73 791.25L532.56 791.13L534.85 789.51L533.62 789.65L531.09 788.06L532.96 786.82L533.34 784.87L532.14 783.28L531.80 781.36L532.65 779.52L531.12 778.33L531.88 776.28L528.95 775.89L528.63 774.52L526.80 775.19L525.36 774.84L524.54 772.00L522.70 771.02L520.30 768.62L520.52 766.96L519.41 764.47L521.27 764.23L521.79 763.20L520.85 761.58L519.19 760.49L519.17 759.53L516.65 759.22L515.07 759.94L515.39 758.21L512.54 761.92L514.38 762.82L511.75 763.01L510.95 765.16L508.76 765.25L506.89 765.98L506.14 767.01L503.57 766.04L503.90 761.98L502.97 759.81L505.14 756.69L505.56 754.98L506.98 754.10L505.04 752.19L500.93 750.79L498.82 751.19L495.66 753.15L492.90 754.06L490.26 753.69L485.68 754.01L483.38 751.67L482.43 752.33L480.65 755.67L479.83 759.55L479.83 761.57L478.75 766.76L479.14 768.75L480.86 770.48L480.90 772.39L478.71 774.90L475.52 776.90L477.22 778.50L478.98 782.42L476.81 783.10L477.79 783.87L477.27 785.01L476.07 784.96L474.21 786.73L474.98 788.55L473.41 789.42L471.09 789.60L471.40 793.69L467.68 794.24L464.71 795.29L462.06 798.54L462.70 801.38L466.97 802.74L467.40 804.18L466.16 807.18L465.29 807.08L463.00 808.83L461.39 808.76L458.07 812.03L455.18 813.24L450.05 813.71L443.55 815.54L441.15 817.40L441.74 818.54L439.78 819.24L440.22 821.69L438.20 821.52L437.23 820.39L435.80 820.56L435.32 822.09L433.60 823.19L431.28 821.04L430.56 817.61L428.99 817.91L426.79 819.94L425.02 820.34L424.43 821.78L423.19 822.42L424.77 822.76L424.39 825.10L423.14 825.94L422.31 822.79L421.03 822.79L420.36 821.23L418.59 823.14L419.53 825.88L420.81 825.36L419.62 827.12L420.51 831.23L416.02 833.96L413.28 834.34L408.72 833.81L406.47 836.40L404.53 836.80L401.34 835.11L398.78 835.23L397.64 838.47L392.27 838.96L388.51 840.73L386.30 840.55L384.61 841.64L380.17 843.29L379.10 842.94L371.17 844.84L370.72 846.42L371.19 852.94L372.77 853.04L377.06 855.09L378.16 856.15L379.34 861.06L378.61 864.72L377.51 867.04L378.70 869.61L380.73 869.82L381.75 870.68L383.84 871.08L384.55 868.64L385.40 868.04L388.73 867.43L389.84 866.27L390.63 866.73L391.99 871.16L393.22 872.65L396.12 871.90L397.31 867.47L400.13 866.55L402.40 866.29L403.29 869.03L400.99 874.57L401.64 877.10L404.74 881.76L405.98 882.14L407.74 883.83L408.05 887.96L407.26 893.05L410.55 897.83L413.42 899.35L416.76 898.69L418.82 900.30L417.78 904.54L419.37 909.92L420.70 911.65L421.12 910.65L422.85 911.38L425.21 911.21L427.03 912.31L430.30 911.12L433.18 908.59L436.06 907.09L438.05 907.62L439.15 910.19L440.62 910.45L441.10 911.87L441.21 915.21L442.31 917.30L444.84 918.50L449.00 918.06L451.50 916.53L454.13 917.10L457.65 914.81L459.47 914.24L461.74 914.54L462.79 915.93L466.03 917.46L467.74 917.61L469.63 918.98L471.59 919.05L476.14 917.54L478.77 918.40L481.15 915.71L482.61 914.86L485.53 916.31L486.99 914.31L488.34 913.46L489.85 913.60L494.08 915.51L495.22 919.51L499.91 921.13L502.97 921.68L503.86 923.18L507.54 925.46L508.78 927.01L508.90 928.76L506.52 931.83L508.04 934.80L508.13 937.78L506.79 938.66L507.76 941.04L511.81 942.22L513.71 943.49L515.41 943.25L516.13 945.13L517.77 945.10L519.81 940.77L521.99 940.17L524.28 938.88L525.33 939.77L527.10 939.48L528.35 940.25L529.81 939.68L530.57 940.85L534.20 940.39L534.19 935.55L532.80 930.54L533.38 927.67L535.42 927.51L538.83 931.49L540.46 930.96L543.56 926.54L544.17 925.18L545.50 925.72L548.72 925.30L550.86 926.35L553.72 924.66L555.08 925.89L558.13 925.09L560.61 923.59L560.90 919.37L560.46 917.68L561.30 913.88L566.39 911.29L568.54 907.35L569.30 907.35L572.06 903.02L576.20 902.10L578.83 900.29L580.82 901.22L581.92 902.41L582.85 902.15L586.76 897.70L587.99 894.69L590.71 891.23L593.33 890.75L594.21 888.43L597.16 885.63L597.79 881.76L597.10 878.56L595.95 877.03L596.46 872.73L597.35 871.88L599.32 872.06L600.27 871.03L598.07 869.55L598.76 867.16L600.42 866.55L602.16 867.77L605.66 864.52L606.41 863.31L611.35 859.21L611.96 857.86L611.87 855.06L610.96 851.73L612.37 850.56L614.67 851.30L615.85 849.59L617.72 850.97L619.18 851.12L618.73 847.33L619.89 843.60L618.80 841.28L619.24 840.18L618.54 838.31L619.68 837.40L620.34 835.36L618.58 833.24L619.57 831.40L618.22 829.59L616.86 829.19L616.36 827.91L615.99 824.00L615.39 822.82Z" fill="#7694af" tabindex="0" role="button" aria-label="黄山市，徽州故里，天下黄山。点击查看城市介绍。"><title>黄山市 · 点击查看介绍</title></path>
+          <path class="city" data-city="chuzhou" d="M480.70 510.23L482.54 511.04L486.06 514.45L494.35 518.32L496.85 518.49L498.47 519.81L500.11 519.31L500.40 515.21L503.80 512.79L505.52 510.25L507.17 510.73L509.48 509.93L512.91 511.29L514.48 509.98L515.28 507.99L517.73 506.51L520.05 506.93L522.94 503.67L525.48 501.87L530.39 497.47L532.55 496.50L532.62 494.34L534.36 490.55L536.90 488.58L538.99 487.85L540.41 486.14L544.33 483.92L545.54 483.13L545.76 480.90L547.29 480.86L548.74 478.85L551.45 478.98L552.56 478.05L555.83 476.55L557.24 474.10L559.67 473.08L561.08 473.14L560.49 470.97L561.30 469.44L562.31 470.11L560.57 465.38L560.74 463.06L562.17 462.45L562.66 460.34L564.83 461.25L565.97 460.07L567.03 460.66L568.81 459.41L570.28 459.89L572.22 458.90L573.09 459.58L575.66 459.44L578.79 458.40L579.81 458.91L582.38 457.62L585.81 453.13L587.03 449.80L585.81 449.38L584.60 447.90L586.30 444.52L585.79 442.66L584.71 442.66L584.75 441.09L587.42 439.16L589.83 439.04L588.16 437.70L588.78 436.84L591.07 437.01L591.75 435.37L590.23 434.65L590.57 433.41L589.55 433.08L590.89 432.00L590.02 430.25L590.41 427.62L589.15 428.47L587.46 425.76L588.50 423.85L588.98 421.13L588.66 419.55L589.50 413.43L589.01 411.98L586.95 412.56L582.91 411.46L582.28 412.50L580.02 412.99L577.16 412.49L577.08 411.57L574.92 411.06L574.78 407.41L577.08 407.09L578.46 405.24L578.02 403.85L576.62 403.43L577.20 400.97L575.75 399.66L573.65 398.90L570.57 396.24L571.42 392.42L573.15 391.01L575.62 389.84L576.17 390.53L579.34 391.35L580.75 393.71L583.58 391.27L586.00 390.95L589.06 392.06L588.98 389.25L590.10 392.10L590.72 392.06L590.30 388.96L594.31 388.64L594.41 390.71L596.57 391.91L597.10 390.26L599.04 389.39L601.72 390.46L601.56 392.13L602.98 393.09L605.54 392.78L607.29 389.93L608.94 389.74L608.90 391.87L608.11 392.45L609.36 393.59L609.25 394.80L612.40 395.58L613.50 394.51L615.91 394.22L618.19 392.30L621.12 391.40L621.34 392.35L619.43 394.00L619.77 396.92L618.25 397.48L622.31 398.81L622.37 397.68L625.34 397.43L625.92 399.11L629.48 402.76L629.94 404.87L631.69 406.72L634.28 406.71L635.76 404.96L637.85 404.29L640.73 404.83L641.34 407.66L644.12 410.44L644.56 413.90L645.48 415.12L647.16 415.58L648.75 413.27L652.35 410.84L654.41 408.85L656.36 408.66L655.55 407.49L656.70 405.69L657.50 402.53L659.30 401.10L659.14 399.42L657.34 397.87L657.25 396.68L660.38 395.08L660.64 391.14L662.14 390.07L663.20 393.78L665.39 394.65L667.00 394.12L666.98 391.38L668.58 388.83L667.04 388.36L666.52 387.08L667.00 384.94L665.30 382.66L665.74 371.33L665.35 370.10L665.23 365.74L664.16 363.92L662.75 357.37L662.40 353.55L661.82 350.99L651.26 351.46L649.97 350.80L645.13 344.22L642.72 342.43L641.37 339.42L641.26 336.13L637.52 337.22L636.87 336.09L637.57 333.66L639.00 333.55L638.11 331.98L638.52 329.93L637.71 328.45L635.96 327.82L633.72 328.02L628.95 330.18L626.08 330.12L624.93 331.41L623.12 331.26L620.81 330.30L619.02 331.04L618.68 329.15L619.41 328.10L617.71 327.62L614.86 328.58L612.52 328.30L612.53 330.16L611.52 330.55L612.47 333.40L611.08 334.21L610.70 336.13L608.07 334.54L607.07 335.18L606.65 336.75L607.42 337.64L606.93 342.36L606.19 343.26L607.12 344.14L607.00 345.91L603.96 347.04L600.60 346.51L597.62 345.27L596.73 346.19L597.46 355.36L596.00 356.58L596.16 360.06L597.39 362.48L598.16 362.85L599.03 365.16L598.86 366.33L595.98 367.15L594.18 368.96L591.65 369.24L589.73 368.14L584.36 366.50L583.84 365.70L581.69 364.99L580.65 365.83L578.40 366.00L577.01 368.13L574.55 368.45L572.46 369.44L569.99 367.57L567.86 367.64L564.22 368.73L559.71 368.50L558.79 369.05L555.23 368.23L553.94 365.24L549.89 369.62L548.14 369.97L546.33 369.05L542.90 369.46L541.85 368.46L541.57 366.69L542.46 365.52L542.29 362.75L541.56 360.92L539.01 360.11L536.84 362.08L535.72 361.76L534.89 359.19L532.89 359.12L531.66 357.93L531.02 355.41L532.81 353.60L531.52 349.88L532.09 347.42L530.30 347.55L529.58 345.51L526.43 345.70L524.58 347.05L523.67 342.53L523.03 341.17L522.00 335.29L522.35 333.52L524.19 332.09L530.86 329.94L533.25 327.90L532.40 326.22L527.34 326.13L524.85 323.88L523.73 321.08L523.53 315.98L522.97 312.75L522.05 310.39L518.97 310.06L519.38 308.50L521.21 308.75L520.63 306.33L517.57 305.53L518.10 304.98L520.28 305.61L520.22 302.45L518.57 302.72L518.68 301.42L520.03 301.03L520.64 293.87L520.27 289.23L518.86 286.31L516.32 284.12L513.94 283.04L512.50 283.82L510.74 286.94L511.27 289.43L509.67 291.44L505.23 292.98L500.74 294.86L498.12 296.47L497.75 297.38L495.17 297.62L494.33 298.76L495.31 299.17L498.62 297.38L498.72 300.47L497.32 303.92L498.45 306.76L496.83 307.85L492.58 307.98L490.43 310.15L488.41 311.21L487.54 313.75L488.53 315.35L490.46 314.81L493.18 316.10L492.39 318.24L489.44 320.49L488.32 320.40L485.25 318.76L483.46 320.45L480.11 318.28L478.62 319.31L475.07 322.93L472.99 322.48L470.10 320.31L472.38 318.39L472.73 317.39L471.71 315.29L472.16 314.72L471.14 312.72L470.18 313.52L467.26 314.56L461.69 315.92L458.42 315.39L456.56 312.96L454.48 312.59L452.90 313.72L450.51 319.09L449.15 320.60L446.43 319.68L444.88 320.35L443.46 323.39L442.92 326.11L440.65 330.51L439.57 334.85L437.47 336.25L435.80 335.98L432.97 333.81L429.53 334.26L427.55 332.23L425.62 331.00L424.41 329.21L421.46 326.06L418.92 324.15L418.47 326.50L418.53 331.36L416.15 332.42L415.09 336.63L414.28 338.56L416.13 340.51L416.33 342.40L415.54 343.52L413.05 344.23L411.28 347.99L410.10 348.99L408.13 348.25L404.38 348.11L402.90 347.36L401.86 349.89L399.04 349.12L395.00 348.89L394.02 348.48L392.42 350.37L388.66 350.95L387.01 350.54L386.08 352.15L382.74 352.41L382.07 353.90L379.89 355.28L378.47 354.45L376.83 356.37L374.94 360.25L372.34 363.74L370.66 364.89L369.67 366.74L371.02 367.85L368.77 369.83L367.97 373.32L364.74 375.02L364.58 376.29L366.22 378.87L366.59 380.80L369.67 388.56L370.14 393.56L372.42 396.94L371.94 399.32L370.74 400.04L370.43 401.49L371.91 404.58L371.68 408.44L371.97 411.50L371.59 412.15L373.14 413.80L376.87 414.29L380.09 415.80L382.45 417.31L383.93 417.12L386.20 415.84L388.95 417.49L394.52 415.03L396.84 413.56L398.77 411.15L400.86 412.83L398.73 415.56L397.05 419.34L397.06 423.12L396.31 424.99L393.66 427.31L395.17 427.74L398.55 426.77L400.43 429.02L405.77 430.51L406.24 434.49L403.08 436.05L401.49 438.63L399.02 444.85L400.86 447.64L403.35 449.04L403.65 451.98L404.84 452.98L406.86 453.47L409.73 455.28L411.74 457.20L414.06 458.74L422.24 456.58L425.51 454.03L428.13 452.57L429.82 452.61L431.07 450.66L432.33 450.69L433.72 449.49L433.68 450.88L436.72 448.82L439.63 448.77L439.77 450.52L443.30 450.90L444.81 451.75L445.47 453.02L447.99 451.45L449.77 451.18L452.15 452.31L454.13 452.56L455.69 453.81L457.14 455.93L459.48 455.67L461.32 454.06L463.28 455.59L465.33 456.33L467.79 460.13L469.08 469.56L466.53 472.63L465.98 475.63L468.24 475.53L468.41 477.13L466.92 477.74L468.16 479.12L468.42 480.83L470.89 482.88L467.83 485.83L464.62 486.75L463.30 488.13L463.24 491.35L460.00 493.60L462.72 494.89L463.70 497.62L464.96 498.40L465.22 500.47L468.04 501.90L468.47 503.46L468.40 506.29L471.11 506.67L473.09 506.26L475.31 507.47L477.45 507.70L480.70 510.23Z" fill="#729d8a" tabindex="0" role="button" aria-label="滁州市，醉翁之意，改革之源。点击查看城市介绍。"><title>滁州市 · 点击查看介绍</title></path>
+          <path class="city" data-city="fuyang" d="M121.84 412.83L120.09 408.54L119.16 408.03L118.66 405.56L117.29 405.35L117.14 403.76L115.54 403.91L111.60 401.75L112.30 399.89L110.97 399.57L110.45 398.31L107.19 398.73L107.76 397.03L107.58 394.44L106.36 394.11L104.07 395.11L95.45 396.79L94.82 397.70L91.94 398.18L90.78 396.90L91.25 395.54L92.79 395.17L90.97 394.70L92.01 392.98L91.10 392.13L90.44 393.35L89.61 391.82L86.38 393.87L84.54 392.67L85.51 391.51L84.55 390.90L82.68 391.35L80.88 393.70L79.98 393.28L80.84 391.70L78.29 392.07L76.67 391.49L75.37 389.67L77.92 388.05L76.42 386.66L76.66 384.29L75.71 384.65L75.76 382.73L76.91 382.19L77.91 383.71L77.82 381.43L79.36 379.82L77.10 380.73L77.26 377.44L75.58 375.72L74.96 376.43L76.05 377.47L74.01 378.51L74.25 376.51L73.34 375.71L73.97 373.70L73.43 372.41L74.20 369.22L73.48 368.19L74.98 360.47L74.09 359.43L73.88 357.63L75.20 357.15L77.90 357.96L77.44 355.83L76.05 355.06L75.03 353.26L75.86 350.43L74.88 348.43L76.90 347.89L76.30 346.01L75.21 345.47L73.02 345.68L70.60 344.64L69.88 342.04L67.99 340.63L67.77 338.54L64.19 338.07L61.54 339.01L59.80 337.55L57.02 337.55L51.50 336.93L51.16 335.63L52.53 335.28L52.33 332.51L50.65 332.27L48.49 331.15L44.02 330.95L41.25 331.27L40.05 332.15L38.65 331.60L37.74 329.08L35.99 327.90L34.58 325.71L31.54 325.53L30.00 323.60L30.23 322.05L32.67 320.73L31.25 317.24L34.70 318.01L36.10 317.89L37.88 316.38L35.82 314.54L35.74 312.42L34.64 310.44L35.31 308.87L34.50 306.45L32.04 305.79L32.18 304.00L33.37 300.60L32.87 298.35L33.95 297.13L36.36 296.80L37.30 295.69L37.24 294.12L40.97 294.81L42.19 295.44L42.56 297.64L44.41 298.44L46.00 299.84L45.73 302.97L48.90 303.87L50.56 305.07L53.19 305.78L54.71 304.77L55.57 306.29L57.35 305.76L63.45 306.43L69.64 306.17L71.80 305.42L72.45 302.07L76.09 299.76L77.95 301.14L80.08 298.92L81.94 298.84L83.31 297.17L86.27 297.81L86.73 296.92L89.77 297.85L90.15 295.95L91.41 296.26L91.22 292.56L90.37 289.98L90.72 285.92L95.07 284.19L93.58 282.96L93.59 282.03L95.86 279.98L95.68 277.15L97.09 275.56L97.20 273.72L96.16 271.48L96.34 269.16L98.10 268.66L100.04 269.16L99.83 266.85L100.74 262.59L98.29 262.08L98.07 258.66L96.86 257.92L97.31 256.50L93.56 256.54L93.14 255.48L95.52 251.22L93.74 248.35L93.49 246.06L93.99 244.32L93.60 243.04L94.62 243.09L94.80 241.54L96.47 243.32L97.92 242.89L98.37 237.83L97.63 237.51L98.72 235.85L97.87 233.68L100.98 230.13L105.16 233.06L105.41 233.84L106.67 231.30L106.14 229.97L108.03 226.98L109.11 224.36L115.24 222.55L116.80 224.26L120.84 223.04L122.23 224.95L124.77 223.33L128.31 222.84L129.29 223.46L130.12 220.96L135.43 220.65L141.10 219.45L142.79 226.46L146.52 232.68L147.20 233.18L149.70 232.54L153.01 232.31L157.21 234.21L157.49 234.90L160.14 235.83L160.70 236.84L162.60 237.47L164.05 239.63L165.73 239.93L169.28 242.64L171.81 242.70L172.71 244.18L178.94 251.42L178.64 254.16L179.09 258.96L180.96 261.80L181.44 263.83L182.47 264.79L182.24 266.47L183.15 267.14L183.41 269.05L181.50 269.61L181.67 272.39L180.31 276.46L180.68 278.07L181.89 278.76L183.10 281.09L181.75 283.47L175.94 277.79L170.43 275.27L169.35 276.32L169.00 280.67L169.82 283.76L171.28 287.27L170.71 289.57L168.38 292.61L168.21 294.65L169.19 293.57L172.01 294.20L172.01 297.22L170.47 297.33L171.15 299.08L174.32 299.04L175.96 299.63L175.21 302.93L174.44 304.45L179.10 304.57L181.51 305.55L186.39 306.80L191.19 308.53L194.38 310.39L196.69 311.07L195.50 313.18L196.36 313.53L200.20 312.33L201.51 313.12L202.12 314.86L201.61 317.08L202.68 317.85L202.83 320.14L201.73 321.63L202.08 322.42L206.21 323.14L212.48 324.94L216.86 325.34L218.68 326.48L218.29 327.81L218.71 331.07L220.29 334.15L222.17 335.71L223.16 339.25L225.24 340.07L228.23 339.87L230.05 340.72L230.52 342.82L235.18 345.20L236.98 345.22L239.29 344.06L245.14 341.90L248.49 338.07L250.85 338.51L251.97 339.62L251.95 340.86L250.79 343.60L251.29 345.55L253.65 346.19L255.98 345.41L259.46 347.89L258.58 351.69L259.99 353.02L259.00 353.84L258.84 355.40L259.93 357.32L259.73 362.19L259.08 364.34L259.41 367.04L260.90 367.58L260.57 370.18L259.25 371.61L259.40 373.10L261.61 376.05L265.56 376.57L265.88 375.90L267.77 376.04L268.40 379.18L271.31 380.06L272.63 385.14L273.58 386.11L273.02 387.39L273.35 389.56L275.66 390.06L275.50 392.52L282.41 391.98L285.09 392.95L286.40 394.37L287.29 398.06L284.17 399.63L277.23 399.74L270.94 405.79L270.77 409.73L268.92 414.21L266.68 413.40L266.05 416.33L265.22 417.89L263.39 418.09L258.28 415.89L253.47 417.30L251.62 416.46L246.67 413.50L242.89 405.59L241.02 403.72L233.92 403.76L232.78 408.30L230.19 410.15L230.91 413.55L229.93 415.20L228.62 413.31L226.76 414.46L225.31 413.67L223.93 416.46L222.09 415.31L219.92 420.32L218.67 417.82L215.77 417.79L214.85 414.24L212.31 412.39L210.67 408.98L208.91 403.26L207.37 400.61L205.23 399.77L202.33 399.37L199.42 397.86L198.58 394.66L197.25 391.53L193.56 389.57L189.22 389.19L187.01 391.62L184.76 394.93L183.49 395.69L181.59 394.08L178.08 394.18L177.50 395.67L173.65 400.91L171.38 401.91L170.50 403.10L170.73 407.18L168.14 407.00L165.24 409.91L162.98 412.77L161.84 413.01L162.73 409.85L160.45 406.47L159.76 408.70L158.35 410.82L156.11 411.48L150.12 408.20L148.79 409.55L148.80 410.75L150.13 412.44L149.46 413.02L146.41 413.21L147.24 415.84L147.10 417.79L146.27 419.17L145.17 422.99L143.53 423.19L143.77 419.96L143.21 419.70L141.95 421.67L139.24 423.76L135.92 420.22L133.22 421.38L129.95 424.19L128.45 423.41L130.72 422.18L130.50 420.96L127.52 420.43L126.07 417.97L123.98 417.43L124.11 416.43L122.86 415.94L121.94 413.15L121.84 412.83Z" fill="#c8a563" tabindex="0" role="button" aria-label="阜阳市，管仲故里，颍淮粮仓。点击查看城市介绍。"><title>阜阳市 · 点击查看介绍</title></path>
+          <path class="city" data-city="suzhou" d="M282.76 143.90L286.09 144.55L289.30 143.88L291.31 144.44L293.74 145.83L295.34 144.80L297.40 145.95L298.47 145.13L301.33 144.79L301.86 145.50L303.55 144.64L304.53 145.34L309.23 145.62L309.18 146.33L310.96 147.01L311.96 148.68L312.64 145.45L311.80 141.98L312.74 136.51L313.23 135.83L312.43 134.25L314.26 132.68L313.96 134.97L315.71 137.39L316.44 136.12L318.26 135.51L318.97 133.30L322.40 134.78L324.57 133.26L326.56 130.58L327.52 130.45L330.41 131.80L330.55 133.63L334.37 134.12L336.94 133.91L335.26 136.47L333.26 138.54L333.58 141.17L333.21 142.22L336.07 142.59L336.72 143.16L336.40 145.22L337.75 146.35L337.08 147.82L337.58 148.70L334.67 153.19L336.62 154.21L338.51 153.66L339.61 154.22L339.60 155.77L340.82 158.27L339.49 160.59L340.47 162.45L338.84 165.08L335.43 166.14L334.89 168.33L334.75 173.96L333.75 176.61L333.49 180.71L333.59 183.95L332.41 186.78L332.66 189.77L333.66 191.56L331.25 191.21L330.92 192.74L331.97 198.67L330.35 199.04L330.52 204.20L328.72 204.03L327.14 204.59L323.38 203.56L322.34 203.72L321.74 206.14L322.06 208.13L321.49 210.40L320.29 212.66L321.09 216.20L322.35 218.67L326.13 221.71L328.44 220.63L331.64 220.28L330.36 224.77L330.30 226.59L328.44 227.45L326.88 233.15L329.08 235.42L327.05 237.25L326.93 238.16L330.43 239.25L330.53 240.75L332.09 242.23L334.84 242.45L336.01 244.01L335.93 245.79L336.68 246.60L335.78 248.21L336.40 249.37L335.66 251.63L336.99 252.90L334.77 254.98L334.61 255.93L332.51 255.42L331.01 258.40L330.34 258.64L329.76 260.76L328.25 261.11L329.31 262.88L328.90 263.89L330.21 264.55L330.52 265.86L329.64 267.61L331.77 268.60L334.07 271.15L337.16 272.57L338.93 272.01L341.27 272.64L342.72 272.43L344.62 269.45L345.91 270.00L354.92 271.45L355.48 267.49L354.42 266.03L350.44 265.09L350.34 263.14L351.90 262.95L352.76 261.12L354.63 260.73L355.08 259.49L353.36 257.49L350.13 256.02L348.42 256.46L349.81 252.85L352.98 250.36L354.82 251.81L356.87 251.82L356.66 252.77L359.33 254.80L360.49 253.70L362.01 249.83L360.67 248.09L359.52 247.63L359.81 245.53L361.41 244.23L363.63 244.75L364.35 241.54L370.67 247.45L371.44 242.32L374.88 238.82L376.44 235.93L376.60 233.92L379.37 234.70L386.37 235.77L387.95 238.33L391.59 238.41L394.56 239.22L398.40 241.77L399.90 247.22L403.19 251.52L404.58 255.14L410.97 260.56L412.02 260.94L415.41 260.85L418.56 261.96L420.17 264.01L423.76 263.07L425.79 264.42L427.50 264.79L430.40 261.94L432.51 260.98L433.71 261.27L435.34 263.03L438.98 264.00L440.35 267.11L442.27 267.97L442.63 270.27L445.26 271.78L447.84 271.46L449.26 273.15L454.78 271.88L457.41 272.72L459.62 271.75L459.80 269.48L462.04 268.99L465.24 269.65L466.26 268.08L467.09 264.51L468.82 263.77L472.26 263.53L472.78 261.85L474.43 261.13L475.44 263.62L480.74 263.83L483.76 263.62L484.69 262.92L483.30 261.20L483.60 260.29L487.11 260.67L488.64 259.81L492.07 256.32L491.59 254.72L491.92 253.14L490.26 250.30L490.99 247.84L491.24 244.42L491.98 241.39L494.17 238.75L495.22 235.57L496.83 235.79L503.65 238.51L503.46 233.51L503.63 230.70L502.34 229.10L503.69 229.00L505.07 217.84L504.29 213.88L505.42 213.12L512.49 205.78L511.86 200.83L512.41 196.96L510.30 196.06L511.39 193.44L513.84 193.35L514.99 191.76L511.70 190.76L509.64 191.51L506.83 190.16L505.10 188.03L503.34 188.36L497.41 188.15L496.94 189.44L494.49 190.89L491.93 191.47L492.31 192.54L490.71 192.85L490.53 191.61L487.29 191.56L486.95 190.88L485.25 191.35L483.71 190.84L482.62 188.57L481.06 190.71L480.34 193.65L478.48 194.46L476.10 193.78L475.41 192.91L473.16 193.37L472.73 194.47L473.33 196.06L471.28 195.63L470.14 194.74L467.06 193.61L463.66 193.64L462.14 193.09L457.19 193.77L455.16 195.65L453.56 195.77L451.45 197.56L448.89 195.62L448.40 193.53L447.05 192.48L447.34 190.97L448.71 190.58L449.86 188.68L450.91 183.68L451.42 180.01L450.49 178.12L451.07 177.53L451.49 174.06L451.41 171.28L452.40 169.32L452.32 167.40L451.61 166.40L449.71 166.30L445.97 168.50L444.24 167.02L442.25 162.25L439.68 158.86L439.67 155.84L438.27 153.01L439.49 149.89L438.76 147.82L435.27 144.92L433.39 142.62L431.43 142.00L430.53 142.52L431.68 144.63L431.46 146.74L430.53 147.73L428.71 148.11L427.28 149.70L425.46 150.55L424.46 150.15L422.62 146.32L420.89 145.23L420.58 143.84L420.99 141.50L419.84 139.86L416.50 137.05L415.05 136.91L414.40 138.54L410.92 139.35L408.49 141.12L404.85 142.69L401.94 143.10L400.48 142.38L399.69 140.40L397.92 137.97L395.40 137.08L396.38 135.21L393.35 132.31L391.33 133.64L387.82 132.98L386.64 135.80L384.05 135.29L383.16 133.97L381.58 133.92L378.73 136.18L373.90 136.48L372.05 134.65L371.30 135.70L369.20 135.69L367.64 134.42L364.58 132.99L363.13 133.10L364.09 130.49L362.42 130.65L360.03 129.96L359.98 127.25L359.08 125.39L356.53 125.01L354.11 122.36L351.51 122.19L348.96 120.73L347.80 121.37L346.53 118.59L345.53 118.72L345.56 120.62L344.32 119.59L342.79 121.70L341.61 121.37L341.15 122.94L338.27 123.81L336.71 120.81L337.29 118.31L338.31 118.62L337.98 120.58L339.94 118.43L338.31 117.74L337.99 113.67L340.21 111.85L339.25 112.05L340.11 109.00L342.04 107.24L342.30 109.54L344.08 110.58L345.32 109.25L346.05 107.43L345.46 105.55L343.94 105.45L343.66 103.33L341.96 103.08L338.60 100.86L336.33 98.46L337.46 93.74L336.38 91.63L337.90 88.96L338.42 86.54L337.99 85.52L335.20 84.67L335.16 83.16L336.38 80.25L332.91 79.08L329.22 77.10L327.56 76.88L323.78 77.78L321.36 79.67L318.64 80.21L315.64 80.18L312.21 76.11L308.97 73.08L308.98 71.68L307.65 69.05L305.74 67.47L303.45 66.49L300.19 65.73L291.33 65.66L285.58 62.96L278.49 62.91L277.54 62.29L278.73 61.39L281.03 62.06L281.99 60.96L281.43 58.99L280.33 58.83L277.81 56.94L274.51 53.56L271.74 53.95L270.48 53.51L271.29 51.75L268.86 51.03L266.33 48.77L266.19 45.58L264.27 43.01L264.11 41.05L259.75 40.12L257.59 38.45L257.24 34.87L251.79 36.22L250.20 36.98L248.98 36.75L248.67 37.88L245.56 40.01L243.07 40.05L241.74 43.48L239.67 43.42L238.24 42.33L236.03 42.14L234.94 43.31L234.39 46.34L233.09 46.49L232.08 49.28L231.17 49.61L230.40 52.03L228.30 51.44L225.87 47.98L224.31 47.47L222.95 47.84L222.85 51.35L222.06 54.81L223.95 57.75L223.96 59.49L221.84 61.50L220.24 61.68L220.28 63.84L217.82 68.02L219.71 70.57L220.34 73.03L224.17 75.60L225.72 77.74L225.89 79.08L224.84 80.01L225.38 81.39L229.25 82.72L231.56 82.38L233.79 83.39L234.67 85.17L236.43 85.43L238.31 88.34L242.43 90.49L246.55 92.20L247.63 93.49L248.85 96.68L247.37 99.74L248.68 101.50L249.23 100.61L251.88 99.77L253.66 99.70L255.15 101.13L257.64 100.80L257.27 99.43L259.49 97.68L261.12 100.98L262.50 100.62L266.00 97.21L269.20 96.25L277.58 98.50L279.56 99.92L279.54 101.43L277.39 104.08L275.38 105.70L273.86 106.11L274.38 108.07L273.73 109.69L274.23 113.73L276.26 115.35L277.07 118.23L274.19 119.70L272.74 121.44L272.54 125.66L271.57 126.31L273.54 128.55L273.27 129.67L275.97 130.66L277.27 133.08L277.40 134.44L279.25 136.24L278.74 136.50L280.29 139.67L281.50 140.65L282.76 143.90Z" fill="#cba86a" tabindex="0" role="button" aria-label="宿州市，楚汉故地，奇石梨乡。点击查看城市介绍。"><title>宿州市 · 点击查看介绍</title></path>
+          <path class="city" data-city="luan" d="M307.27 509.35L303.95 508.01L300.23 508.41L297.17 510.42L295.03 510.71L293.96 508.62L293.96 501.39L294.17 499.53L293.59 498.10L292.09 497.81L284.00 493.82L280.20 490.74L277.90 490.44L274.33 489.11L275.08 486.71L273.92 482.26L274.71 480.33L272.32 477.03L271.08 473.82L271.89 470.74L271.36 467.71L269.73 465.68L268.82 462.00L269.96 460.32L269.75 458.88L267.61 456.69L269.70 455.30L271.50 452.32L270.66 448.76L271.33 447.10L270.61 443.32L270.28 439.53L268.41 434.34L265.13 431.59L264.68 428.99L265.30 426.78L266.30 425.43L264.54 423.54L265.22 417.89L263.39 418.09L258.28 415.89L253.47 417.30L251.62 416.46L246.67 413.50L242.89 405.59L241.02 403.72L233.92 403.76L232.78 408.30L230.19 410.15L230.91 413.55L229.93 415.20L228.62 413.31L226.76 414.46L225.31 413.67L223.93 416.46L222.09 415.31L219.92 420.32L218.67 417.82L215.77 417.79L214.85 414.24L212.31 412.39L210.67 408.98L208.91 403.26L207.37 400.61L205.23 399.77L202.33 399.37L199.42 397.86L198.58 394.66L197.25 391.53L193.56 389.57L189.22 389.19L187.01 391.62L184.76 394.93L183.49 395.69L180.82 395.79L179.24 397.65L176.04 399.79L175.36 402.92L173.00 404.28L171.59 405.74L171.36 407.08L172.43 406.62L175.38 406.57L175.57 407.78L176.91 409.25L176.57 412.15L175.26 412.63L174.07 414.50L176.78 414.99L176.87 418.02L176.27 419.06L177.77 420.51L177.75 422.38L179.19 426.42L179.02 429.51L179.21 434.24L180.00 434.93L180.35 440.02L179.37 441.79L180.54 442.16L180.95 444.77L182.27 446.67L181.49 449.85L181.19 454.56L182.68 458.72L183.03 461.46L184.27 462.74L185.48 465.39L185.25 468.57L183.93 475.06L183.22 475.76L184.10 479.39L185.58 480.53L185.14 482.58L183.41 483.81L182.59 485.39L183.40 487.70L182.19 489.16L183.41 489.91L183.38 492.69L184.29 493.71L182.93 494.75L182.73 496.50L180.99 501.26L180.65 503.82L181.69 505.08L182.29 507.77L181.86 509.58L179.88 514.16L179.08 514.73L178.69 516.94L178.29 522.86L179.92 523.54L181.26 525.15L181.53 526.57L180.83 529.96L179.44 530.01L177.15 532.77L174.72 532.69L173.20 533.18L172.01 530.93L169.99 533.16L169.19 532.51L166.89 535.15L162.92 532.12L159.92 530.73L159.21 531.69L156.12 531.73L154.98 532.78L154.33 534.98L151.54 533.67L149.53 534.06L148.45 532.69L146.69 532.29L144.02 535.52L140.63 536.41L138.07 539.31L135.47 540.46L133.34 542.19L132.71 543.54L130.11 544.39L128.43 546.77L125.25 546.20L122.78 548.92L119.89 550.63L118.43 552.91L118.26 554.77L117.19 555.83L119.05 558.81L118.84 561.15L111.76 565.22L111.59 566.74L110.03 569.61L110.52 570.37L110.08 572.41L108.21 576.09L105.41 577.96L104.36 579.27L102.52 580.07L101.65 581.53L102.60 585.70L104.39 589.20L103.78 590.41L103.44 594.67L102.01 596.91L104.83 599.66L103.41 602.13L102.32 602.92L103.31 605.43L101.78 606.69L105.75 607.78L106.56 608.67L108.89 606.58L112.06 607.24L113.17 612.48L114.84 612.10L114.38 618.42L115.64 619.33L116.62 621.25L119.70 621.13L120.72 621.74L121.68 620.79L122.92 621.55L124.99 624.00L126.40 627.03L126.21 629.02L126.55 634.05L129.32 639.42L133.16 642.21L134.78 641.18L135.81 637.10L139.52 635.21L140.59 632.55L142.01 630.89L143.37 630.65L146.73 631.23L150.07 632.36L154.08 636.93L155.91 640.70L158.15 642.50L159.36 646.71L160.24 647.61L161.92 647.52L164.33 645.04L166.58 644.51L168.91 645.29L170.70 644.85L173.02 642.37L174.81 641.62L176.40 642.61L177.32 645.13L177.48 648.26L179.73 651.74L180.73 651.48L183.10 653.88L185.17 654.77L185.53 656.68L184.99 658.99L186.11 659.84L188.29 659.07L191.62 659.93L193.14 661.19L194.99 661.18L195.49 664.19L196.22 665.13L200.79 664.67L201.59 659.88L201.50 658.60L203.76 655.05L207.62 652.87L207.73 651.58L209.37 650.83L211.47 652.14L217.17 649.99L218.43 650.28L220.64 652.75L221.00 655.94L223.87 657.16L226.69 656.49L229.77 654.09L232.41 652.92L233.45 649.85L237.05 647.31L238.59 645.86L239.51 642.87L242.58 641.97L244.35 640.79L244.68 638.85L246.82 637.05L249.68 638.54L252.11 639.11L255.01 639.10L257.45 642.22L258.30 644.95L261.62 645.38L263.06 643.70L264.78 643.47L266.97 641.42L267.73 642.69L268.67 642.51L270.32 639.45L273.10 636.97L273.84 635.68L275.21 636.06L275.76 637.37L275.21 638.45L276.02 641.63L275.66 645.83L276.66 647.95L274.71 651.04L273.14 654.69L272.37 657.38L272.56 659.53L272.00 661.07L271.95 663.55L273.86 663.67L276.32 661.19L276.82 659.30L277.89 658.22L280.92 658.94L281.34 657.81L283.83 655.53L284.20 654.39L285.44 654.35L289.05 656.98L290.07 658.14L291.76 656.95L294.41 657.53L295.16 658.75L298.25 659.70L300.19 656.86L302.23 656.12L304.57 656.64L305.83 655.35L308.23 655.06L309.85 655.88L312.39 652.95L313.81 652.40L315.83 649.66L317.88 649.10L317.71 647.55L318.44 645.60L320.66 644.69L322.68 645.11L325.46 644.08L329.05 640.98L329.54 639.46L332.65 639.17L333.09 635.54L334.14 634.43L335.49 630.03L338.16 624.83L340.63 622.76L341.88 620.82L343.28 620.97L345.63 622.74L347.54 620.59L347.62 618.18L350.27 617.06L351.29 615.04L351.18 611.47L351.72 609.09L352.84 607.27L351.77 604.72L351.88 602.34L354.75 596.38L357.50 591.24L361.82 585.43L362.81 583.48L365.34 582.21L367.99 581.83L375.74 582.24L377.72 581.14L377.82 580.08L376.48 579.17L374.43 572.83L373.21 573.62L370.02 571.59L368.36 571.57L363.48 572.77L362.19 571.09L360.54 571.75L360.29 573.16L359.14 572.89L357.39 573.65L350.58 571.32L348.97 572.84L346.71 573.86L341.90 572.27L341.20 570.06L339.55 570.45L339.52 574.09L339.00 574.74L337.29 573.62L336.03 573.69L333.92 575.04L331.28 574.05L326.51 575.70L323.17 575.10L318.20 576.00L315.89 577.28L313.83 575.06L312.50 574.94L312.17 573.79L310.47 572.98L310.01 571.82L306.74 568.23L306.12 566.32L306.64 565.11L306.47 560.05L304.85 556.87L304.63 555.12L305.29 553.02L306.80 550.78L306.12 548.39L305.97 543.99L304.49 540.97L305.56 537.83L305.35 535.13L304.48 534.60L301.40 534.62L301.93 532.99L301.05 531.68L299.73 532.25L298.90 530.04L296.07 527.01L295.73 525.12L297.12 523.07L301.62 520.25L302.79 518.60L300.45 518.53L300.00 516.27L298.90 514.96L299.19 514.04L306.27 510.58L307.27 509.35Z" fill="#68917f" tabindex="0" role="button" aria-label="六安市，大别门户，将军故里。点击查看城市介绍。"><title>六安市 · 点击查看介绍</title></path>
+          <path class="city" data-city="bozhou" d="M251.84 185.16L248.72 185.65L247.04 186.34L245.23 185.91L242.58 186.76L242.30 188.06L240.55 187.21L239.27 189.58L235.82 190.87L232.73 194.34L230.15 194.58L227.82 193.51L227.30 195.66L224.11 194.91L222.99 195.16L219.57 197.99L216.84 197.83L214.89 193.59L214.98 192.89L213.35 190.50L210.07 189.47L208.54 186.58L208.57 185.15L204.95 185.43L204.78 183.26L202.15 181.40L203.17 179.72L202.54 178.53L200.68 178.25L200.76 177.20L203.34 177.70L203.57 174.01L202.34 173.41L202.08 171.69L200.40 169.26L199.12 169.46L199.09 168.37L195.99 167.39L195.85 165.36L193.89 164.58L192.11 164.71L191.47 161.94L193.35 156.68L194.06 153.97L193.27 151.91L191.67 149.70L187.78 146.25L183.24 146.22L182.22 145.72L179.96 145.87L179.23 145.04L178.64 142.61L177.45 141.91L176.03 142.42L175.96 147.04L172.38 146.93L171.31 145.51L171.28 142.25L169.37 140.91L166.92 138.43L165.97 136.77L163.67 136.57L161.74 134.92L161.91 136.82L160.06 136.83L155.21 134.29L150.82 137.24L149.92 136.16L147.28 136.25L145.42 137.77L143.13 137.18L142.31 139.57L142.54 141.42L141.46 142.00L138.40 142.37L137.47 141.81L135.41 143.61L136.23 145.30L134.18 145.88L132.92 149.56L133.94 149.98L133.55 151.58L132.18 152.10L131.96 156.23L130.73 157.03L130.85 159.23L129.76 160.21L129.35 162.39L130.60 163.71L128.92 164.27L128.69 166.89L127.41 166.91L127.36 169.15L128.90 168.91L130.00 169.88L132.25 168.90L134.13 170.41L136.10 170.56L138.33 169.05L140.18 170.57L140.57 175.10L139.12 175.96L139.02 178.13L137.70 178.77L138.68 180.16L138.37 182.79L137.35 186.45L133.87 185.05L132.65 184.19L130.15 185.66L129.85 187.14L130.86 188.24L131.56 190.50L132.84 191.37L134.71 194.14L135.49 196.34L134.71 199.50L136.31 201.45L135.20 201.58L135.63 204.29L135.50 206.88L137.87 211.22L138.94 212.43L141.10 219.45L142.79 226.46L146.52 232.68L147.20 233.18L149.70 232.54L153.01 232.31L157.21 234.21L157.49 234.90L160.14 235.83L160.70 236.84L162.60 237.47L164.05 239.63L165.73 239.93L169.28 242.64L171.81 242.70L172.71 244.18L178.94 251.42L178.64 254.16L179.09 258.96L180.96 261.80L181.44 263.83L182.47 264.79L182.24 266.47L183.15 267.14L183.41 269.05L181.50 269.61L181.67 272.39L180.31 276.46L180.68 278.07L181.89 278.76L183.10 281.09L181.75 283.47L175.94 277.79L170.43 275.27L169.35 276.32L169.00 280.67L169.82 283.76L171.28 287.27L170.71 289.57L168.38 292.61L168.21 294.65L169.19 293.57L172.01 294.20L172.01 297.22L170.47 297.33L171.15 299.08L174.32 299.04L175.96 299.63L175.21 302.93L174.44 304.45L179.10 304.57L181.51 305.55L186.39 306.80L191.19 308.53L194.38 310.39L196.69 311.07L195.50 313.18L196.36 313.53L200.20 312.33L201.51 313.12L202.12 314.86L201.61 317.08L202.68 317.85L202.83 320.14L201.73 321.63L202.08 322.42L206.21 323.14L212.48 324.94L216.86 325.34L218.68 326.48L218.29 327.81L218.71 331.07L220.29 334.15L222.17 335.71L223.16 339.25L225.24 340.07L228.23 339.87L230.05 340.72L230.52 342.82L235.18 345.20L236.98 345.22L239.29 344.06L245.14 341.90L248.49 338.07L250.85 338.51L251.97 339.62L251.86 336.25L250.66 334.36L247.75 331.06L247.65 329.99L248.61 326.87L249.31 326.16L249.33 321.87L250.18 319.96L259.58 323.41L286.24 330.93L294.53 331.30L297.66 331.71L302.07 333.15L303.10 329.91L302.77 327.76L303.81 324.43L304.85 322.69L304.93 320.32L306.85 319.74L306.93 320.72L308.31 320.22L308.20 321.38L311.35 321.80L311.88 320.78L313.07 321.59L313.89 318.53L313.71 317.06L311.84 315.13L308.81 313.84L304.54 311.59L303.97 310.25L304.04 307.71L306.32 305.08L306.31 300.90L304.87 298.09L305.18 296.33L307.30 293.90L308.15 294.50L310.32 291.52L312.29 293.76L313.76 293.87L314.66 285.67L315.42 284.28L315.33 280.82L313.45 277.44L312.32 273.06L311.59 273.00L311.80 268.15L309.91 265.41L310.11 262.85L309.67 260.65L310.66 259.34L310.19 258.44L311.64 253.91L311.01 250.99L312.20 247.54L307.18 245.99L305.16 244.85L303.57 243.01L300.15 242.73L296.83 238.68L294.94 238.00L291.79 238.59L288.36 238.07L287.49 236.79L285.59 236.70L284.02 237.33L281.20 237.64L279.51 239.18L277.48 240.03L274.43 239.75L272.67 237.43L272.44 234.53L273.19 231.91L272.54 229.85L271.09 228.90L271.63 226.57L271.20 225.28L272.14 222.83L274.50 222.06L273.42 219.02L275.02 218.85L274.96 217.45L273.89 217.25L272.41 214.35L268.26 213.59L268.01 211.46L264.68 207.47L265.37 205.43L266.30 205.02L266.34 202.79L265.13 199.92L264.31 199.90L264.43 198.05L262.10 196.14L261.58 193.64L257.64 192.68L258.01 188.78L253.71 188.72L253.96 187.36L251.84 185.16Z" fill="#c19b58" tabindex="0" role="button" aria-label="亳州市，药都酒乡，曹魏故里。点击查看城市介绍。"><title>亳州市 · 点击查看介绍</title></path>
+          <path class="city" data-city="chizhou" d="M292.98 890.64L294.93 886.32L297.28 885.20L299.85 881.37L302.60 879.50L303.56 876.70L306.01 874.59L308.71 876.33L310.02 875.87L313.33 873.00L316.03 867.84L320.52 863.36L323.66 858.83L325.03 854.36L325.01 852.97L326.23 849.13L324.43 845.79L321.60 843.77L318.18 845.65L316.80 845.46L316.70 847.71L315.74 846.78L315.86 839.25L311.93 840.99L309.65 836.86L309.09 835.07L307.15 834.21L306.31 831.91L304.70 831.90L303.78 830.47L307.37 827.62L314.00 820.46L317.67 814.97L320.34 809.67L321.43 803.39L325.13 798.73L329.22 795.71L330.20 793.02L330.43 789.99L329.21 785.95L327.72 782.73L326.69 778.50L325.30 774.29L324.48 769.89L325.02 768.56L325.09 765.72L326.37 764.78L328.33 766.69L331.43 764.13L333.61 763.69L337.30 761.05L338.89 758.85L342.43 755.64L344.63 754.78L357.28 754.59L360.74 755.16L364.98 758.15L369.12 759.70L372.24 757.78L374.13 755.69L375.61 752.96L376.33 749.79L376.70 747.18L377.94 742.71L377.30 738.32L372.89 732.89L372.78 731.16L380.94 726.66L386.35 723.17L391.33 721.06L394.77 720.14L398.82 720.01L399.55 720.76L402.93 722.11L407.15 722.78L409.99 722.79L412.19 721.48L413.39 719.72L415.40 714.52L425.63 709.33L435.71 705.88L439.39 705.03L443.97 700.68L443.49 703.57L446.78 703.37L449.96 700.58L451.28 701.32L451.93 703.17L450.83 705.55L452.51 707.05L452.26 708.47L455.74 708.04L456.01 710.53L457.84 710.76L458.85 709.19L460.71 708.77L464.61 706.40L465.20 703.83L469.09 700.46L470.74 699.69L473.55 699.40L475.41 698.44L478.17 695.63L479.45 696.09L480.96 698.78L484.90 694.24L486.25 696.83L482.89 701.98L483.19 702.70L485.38 702.86L487.40 705.47L492.25 706.31L495.36 708.99L498.25 711.03L501.87 712.42L504.77 715.79L506.13 716.06L506.65 718.92L507.59 719.10L506.29 720.74L503.30 725.56L502.40 727.57L502.60 729.32L499.22 732.36L498.51 734.82L497.46 736.46L494.55 736.96L491.15 740.72L487.34 741.52L485.59 743.16L485.90 747.26L484.99 749.39L483.38 751.67L482.43 752.33L480.65 755.67L479.83 759.55L479.83 761.57L478.75 766.76L479.14 768.75L480.86 770.48L480.90 772.39L478.71 774.90L475.52 776.90L477.22 778.50L478.98 782.42L476.81 783.10L477.79 783.87L477.27 785.01L476.07 784.96L474.21 786.73L474.98 788.55L473.41 789.42L471.09 789.60L471.40 793.69L467.68 794.24L464.71 795.29L462.06 798.54L462.70 801.38L466.97 802.74L467.40 804.18L466.16 807.18L465.29 807.08L463.00 808.83L461.39 808.76L458.07 812.03L455.18 813.24L450.05 813.71L443.55 815.54L441.15 817.40L441.74 818.54L439.78 819.24L440.22 821.69L438.20 821.52L437.23 820.39L435.80 820.56L435.32 822.09L433.60 823.19L431.28 821.04L430.56 817.61L428.99 817.91L426.79 819.94L425.02 820.34L424.43 821.78L423.19 822.42L424.77 822.76L424.39 825.10L423.14 825.94L422.31 822.79L421.03 822.79L420.36 821.23L418.59 823.14L419.53 825.88L420.81 825.36L419.62 827.12L420.51 831.23L416.02 833.96L413.28 834.34L408.72 833.81L406.47 836.40L404.53 836.80L401.34 835.11L398.78 835.23L397.64 838.47L392.27 838.96L388.51 840.73L386.30 840.55L384.61 841.64L380.17 843.29L379.10 842.94L371.17 844.84L370.72 846.42L371.19 852.94L368.64 853.92L366.98 853.90L362.75 855.74L360.68 857.04L359.69 858.48L360.43 862.16L359.65 864.35L357.11 865.43L354.52 868.64L351.66 869.44L352.00 871.10L354.51 873.37L359.69 875.76L360.81 878.32L360.79 879.87L356.85 883.34L356.79 884.54L358.88 887.40L357.49 890.24L353.50 892.88L351.30 893.43L348.42 895.31L347.07 895.65L343.14 894.81L340.31 895.22L338.62 896.73L336.66 900.02L332.02 901.30L328.93 903.69L322.30 908.06L318.71 913.75L317.11 914.89L314.22 915.77L310.89 915.46L308.67 914.77L308.53 913.47L309.60 911.17L307.83 910.49L307.13 911.01L305.71 909.82L302.73 912.10L301.23 915.11L300.00 915.73L299.26 911.26L295.20 908.95L294.72 907.66L292.51 905.32L289.76 903.23L289.81 901.80L291.48 899.42L293.46 897.71L293.96 895.55L292.87 894.50L290.46 894.71L290.09 893.25L292.13 892.29L292.98 890.64ZM296.67 890.99L297.68 892.84L297.33 890.60L296.67 890.99ZM297.79 892.94L297.57 894.31L299.35 893.94L299.16 892.82L297.79 892.94ZM384.54 756.00L383.51 757.89L381.20 759.81L378.60 760.97L378.43 761.75L380.14 763.88L378.96 765.82L377.98 766.12L377.90 767.55L380.34 767.61L382.18 768.60L384.85 766.71L383.98 764.01L385.75 763.17L387.13 760.39L388.17 760.33L388.87 758.87L388.56 755.93L387.86 755.04L386.06 754.78L384.54 756.00Z" fill="#7c9ab4" tabindex="0" role="button" aria-label="池州市，千载诗人地，九华佛国。点击查看城市介绍。"><title>池州市 · 点击查看介绍</title></path>
+          <path class="city" data-city="xuancheng" d="M615.39 822.82L615.80 820.81L618.09 820.05L618.22 818.34L619.37 816.35L619.50 814.74L617.18 814.96L614.93 814.14L613.56 814.72L611.99 813.34L613.04 811.54L614.74 811.11L621.55 807.91L623.00 805.91L624.36 805.16L623.63 803.35L620.43 802.64L618.94 798.35L617.38 797.53L618.45 796.35L616.75 791.42L617.29 788.68L617.01 785.85L619.93 784.51L621.20 783.08L622.59 782.81L625.30 780.62L625.31 779.63L628.10 778.17L628.77 780.24L630.10 779.53L631.09 780.26L632.90 780.00L632.90 782.63L635.30 783.41L638.88 786.25L641.75 786.23L642.12 787.26L643.91 787.57L645.44 785.67L647.91 784.26L650.96 786.47L653.53 787.61L656.87 787.63L657.67 788.50L662.29 789.87L664.18 789.98L664.86 788.15L667.35 788.50L668.31 790.21L669.35 788.89L670.77 784.68L669.90 783.74L670.95 781.36L673.59 781.83L675.50 781.22L677.17 779.83L678.82 777.40L682.99 776.04L684.98 777.48L685.98 779.91L689.82 778.93L691.37 777.35L693.40 776.69L693.85 775.55L692.50 774.04L689.21 773.89L688.50 773.12L688.84 771.15L688.00 769.46L685.99 769.61L686.50 766.80L686.02 764.39L684.02 763.22L683.78 757.58L683.17 755.83L684.05 752.55L682.93 750.04L682.62 748.07L680.72 748.38L676.95 751.60L674.62 751.96L673.08 750.71L673.12 749.36L670.28 748.59L669.46 745.70L670.72 743.15L673.54 741.07L673.54 739.58L671.98 738.43L671.91 737.08L669.78 734.85L671.38 732.96L672.66 733.97L675.15 733.42L677.43 733.69L680.48 732.79L682.11 731.22L683.66 727.43L685.05 725.35L686.73 724.88L689.35 722.55L690.38 722.72L692.16 721.70L692.77 722.83L693.41 726.27L695.27 729.03L698.35 728.77L700.50 726.80L701.18 724.06L703.10 721.94L705.56 718.38L705.11 712.77L705.83 711.42L704.98 709.95L705.17 706.45L706.85 705.77L709.14 707.09L711.69 705.98L716.10 697.39L717.08 696.72L719.22 696.68L718.92 692.59L716.75 689.50L716.77 685.94L716.37 685.08L717.47 681.18L719.90 679.45L720.16 676.29L719.90 672.88L721.07 670.80L723.87 668.60L725.17 666.77L726.31 666.27L727.78 663.82L727.38 659.17L727.92 656.07L727.12 652.37L727.88 650.95L730.00 648.99L726.33 647.10L726.28 644.62L724.80 644.82L722.75 648.28L720.14 648.37L718.98 647.45L718.57 644.85L716.94 642.81L714.83 641.58L713.16 639.80L711.55 639.52L710.14 640.16L707.28 638.78L705.97 639.23L705.52 640.77L704.54 639.67L702.30 640.10L701.45 638.63L699.10 636.52L696.81 635.69L695.67 637.23L693.50 636.23L692.15 637.01L691.84 634.56L694.24 633.51L692.66 632.61L690.35 634.42L689.21 632.94L688.38 633.25L687.54 630.44L688.30 626.90L690.42 620.53L689.23 620.14L688.69 617.09L687.03 614.66L686.08 615.05L686.10 618.41L685.47 620.60L684.23 622.35L683.60 621.44L680.90 621.16L677.91 621.61L673.87 623.81L673.05 621.93L671.34 621.81L671.40 622.63L669.69 623.08L669.36 622.28L666.75 621.37L666.27 619.71L664.65 621.16L663.61 619.81L663.95 616.33L661.26 615.15L660.54 616.28L657.88 616.13L656.70 619.19L655.31 619.38L654.00 621.71L652.28 621.86L650.37 623.78L650.12 626.44L647.21 625.57L645.49 626.85L643.81 625.89L641.83 626.74L640.46 625.90L638.01 625.94L636.86 625.33L635.14 626.70L632.67 627.15L632.29 626.01L627.76 626.01L623.63 625.67L622.20 624.89L618.68 625.97L615.51 625.23L612.78 625.68L608.81 627.27L608.08 626.31L605.67 627.66L604.59 627.45L602.55 625.65L602.34 622.24L599.61 619.10L594.50 618.31L591.75 615.78L591.24 614.74L593.47 616.13L593.68 611.30L592.75 611.47L591.19 613.88L589.44 613.67L587.91 614.48L584.25 614.42L584.93 616.83L584.72 620.47L583.52 621.98L582.85 624.66L585.24 626.16L585.92 628.24L588.09 630.11L589.86 634.43L591.91 636.53L593.29 637.05L595.52 641.30L593.13 642.21L590.88 643.67L589.17 645.54L588.10 647.81L588.46 650.51L587.19 651.66L587.08 653.09L588.04 654.21L585.21 657.76L583.25 660.81L579.91 663.62L576.90 663.69L576.04 662.33L576.45 659.53L575.33 658.90L573.59 662.67L571.83 664.37L573.14 668.10L573.33 670.33L571.64 671.99L568.70 672.27L562.72 675.66L563.45 678.00L560.58 677.40L562.56 679.54L562.91 682.07L559.70 684.50L560.18 687.37L559.13 688.45L557.65 687.65L557.12 688.82L558.86 689.57L557.89 691.86L559.09 690.73L560.95 691.46L559.75 693.40L559.88 694.41L557.98 696.01L558.60 697.92L560.56 698.38L561.67 700.02L561.63 701.57L558.97 703.52L558.38 705.19L558.31 707.64L554.11 705.44L554.63 703.53L553.35 701.67L551.18 702.44L549.39 699.46L550.91 699.42L551.93 697.54L550.12 694.71L547.93 693.39L543.06 693.94L540.49 693.90L538.83 697.60L537.45 697.18L534.58 698.06L532.82 700.63L533.73 702.68L532.57 701.66L532.22 702.90L532.95 705.92L531.53 706.61L531.04 709.26L528.41 711.67L528.27 712.83L531.06 715.26L531.42 716.38L533.96 718.27L532.57 719.47L530.85 719.15L528.71 716.95L527.08 716.69L523.45 718.54L521.44 717.55L519.84 717.51L517.95 718.77L512.92 720.60L510.33 724.94L507.87 727.43L502.60 729.32L499.22 732.36L498.51 734.82L497.46 736.46L494.55 736.96L491.15 740.72L487.34 741.52L485.59 743.16L485.90 747.26L484.99 749.39L483.38 751.67L485.68 754.01L490.26 753.69L492.90 754.06L495.66 753.15L498.82 751.19L500.93 750.79L505.04 752.19L506.98 754.10L505.56 754.98L505.14 756.69L502.97 759.81L503.90 761.98L503.57 766.04L506.14 767.01L506.89 765.98L508.76 765.25L510.95 765.16L511.75 763.01L514.38 762.82L512.54 761.92L515.39 758.21L515.07 759.94L516.65 759.22L519.17 759.53L519.19 760.49L520.85 761.58L521.79 763.20L521.27 764.23L519.41 764.47L520.52 766.96L520.30 768.62L522.70 771.02L524.54 772.00L525.36 774.84L526.80 775.19L528.63 774.52L528.95 775.89L531.88 776.28L531.12 778.33L532.65 779.52L531.80 781.36L532.14 783.28L533.34 784.87L532.96 786.82L531.09 788.06L533.62 789.65L534.85 789.51L532.56 791.13L530.73 791.25L527.64 793.65L526.94 795.38L527.10 798.24L527.71 799.13L529.86 800.05L530.36 802.45L530.47 805.83L533.52 806.92L535.75 810.03L537.61 811.66L538.81 817.13L540.20 819.27L539.93 821.00L542.21 823.11L544.26 823.56L545.76 821.98L547.18 823.13L549.13 823.53L553.86 822.61L556.65 826.11L557.94 827.13L560.40 827.89L563.27 833.64L563.19 835.08L560.93 837.24L561.02 839.35L562.06 841.88L562.58 840.68L564.21 840.59L564.81 841.68L564.27 844.68L564.85 846.03L568.36 849.88L570.70 849.47L572.22 846.66L573.47 845.87L576.76 845.30L577.96 843.77L578.63 840.84L578.03 840.07L580.02 837.52L583.39 836.14L586.04 836.29L588.94 835.36L589.83 834.03L590.27 830.55L595.05 828.21L596.93 824.32L598.61 826.42L600.57 827.09L603.80 826.82L608.37 822.59L612.63 821.25L615.39 822.82Z" fill="#7190ab" tabindex="0" role="button" aria-label="宣城市，宣纸之乡，诗画皖南。点击查看城市介绍。"><title>宣城市 · 点击查看介绍</title></path>
+          </g>
+          <path class="province-line" d="M121.84 412.83L120.09 408.54L119.16 408.03L118.66 405.56L117.29 405.35L117.14 403.76L115.54 403.91L111.60 401.75L112.30 399.89L110.97 399.57L110.45 398.31L107.19 398.73L107.76 397.03L107.58 394.44L106.36 394.11L104.07 395.11L95.45 396.79L94.82 397.70L91.94 398.18L90.78 396.90L91.25 395.54L92.79 395.17L90.97 394.70L92.01 392.98L91.10 392.13L90.44 393.35L89.61 391.82L86.38 393.87L84.54 392.67L85.51 391.51L84.55 390.90L82.68 391.35L80.88 393.70L79.98 393.28L80.84 391.70L78.29 392.07L76.67 391.49L75.37 389.67L77.92 388.05L76.42 386.66L76.66 384.29L75.71 384.65L75.76 382.73L76.91 382.19L77.91 383.71L77.82 381.43L79.36 379.82L77.10 380.73L77.26 377.44L75.58 375.72L74.96 376.43L76.05 377.47L74.01 378.51L74.25 376.51L73.34 375.71L73.97 373.70L73.43 372.41L74.20 369.22L73.48 368.19L74.98 360.47L74.09 359.43L73.88 357.63L75.20 357.15L77.90 357.96L77.44 355.83L76.05 355.06L75.03 353.26L75.86 350.43L74.88 348.43L76.90 347.89L76.30 346.01L75.21 345.47L73.02 345.68L70.60 344.64L69.88 342.04L67.99 340.63L67.77 338.54L64.19 338.07L61.54 339.01L59.80 337.55L57.02 337.55L51.50 336.93L51.16 335.63L52.53 335.28L52.33 332.51L50.65 332.27L48.49 331.15L44.02 330.95L41.25 331.27L40.05 332.15L38.65 331.60L37.74 329.08L35.99 327.90L34.58 325.71L31.54 325.53L30.00 323.60L30.23 322.05L32.67 320.73L31.25 317.24L34.70 318.01L36.10 317.89L37.88 316.38L35.82 314.54L35.74 312.42L34.64 310.44L35.31 308.87L34.50 306.45L32.04 305.79L32.18 304.00L33.37 300.60L32.87 298.35L33.95 297.13L36.36 296.80L37.30 295.69L37.24 294.12L40.97 294.81L42.19 295.44L42.56 297.64L44.41 298.44L46.00 299.84L45.73 302.97L48.90 303.87L50.56 305.07L53.19 305.78L54.71 304.77L55.57 306.29L57.35 305.76L63.45 306.43L69.64 306.17L71.80 305.42L72.45 302.07L76.09 299.76L77.95 301.14L80.08 298.92L81.94 298.84L83.31 297.17L86.27 297.81L86.73 296.92L89.77 297.85L90.15 295.95L91.41 296.26L91.22 292.56L90.37 289.98L90.72 285.92L95.07 284.19L93.58 282.96L93.59 282.03L95.86 279.98L95.68 277.15L97.09 275.56L97.20 273.72L96.16 271.48L96.34 269.16L98.10 268.66L100.04 269.16L99.83 266.85L100.74 262.59L98.29 262.08L98.07 258.66L96.86 257.92L97.31 256.50L93.56 256.54L93.14 255.48L95.52 251.22L93.74 248.35L93.49 246.06L93.99 244.32L93.60 243.04L94.62 243.09L94.80 241.54L96.47 243.32L97.92 242.89L98.37 237.83L97.63 237.51L98.72 235.85L97.87 233.68L100.98 230.13L105.16 233.06L105.41 233.84L106.67 231.30L106.14 229.97L108.03 226.98L109.11 224.36L115.24 222.55L116.80 224.26L120.84 223.04L122.23 224.95L124.77 223.33L128.31 222.84L129.29 223.46L130.12 220.96L135.43 220.65L141.10 219.45L138.94 212.43L137.87 211.22L135.50 206.88L135.63 204.29L135.20 201.58L136.31 201.45L134.71 199.50L135.49 196.34L134.71 194.14L132.84 191.37L131.56 190.50L130.86 188.24L129.85 187.14L130.15 185.66L132.65 184.19L133.87 185.05L137.35 186.45L138.37 182.79L138.68 180.16L137.70 178.77L139.02 178.13L139.12 175.96L140.57 175.10L140.18 170.57L138.33 169.05L136.10 170.56L134.13 170.41L132.25 168.90L130.00 169.88L128.90 168.91L127.36 169.15L127.41 166.91L128.69 166.89L128.92 164.27L130.60 163.71L129.35 162.39L129.76 160.21L130.85 159.23L130.73 157.03L131.96 156.23L132.18 152.10L133.55 151.58L133.94 149.98L132.92 149.56L134.18 145.88L136.23 145.30L135.41 143.61L137.47 141.81L138.40 142.37L141.46 142.00L142.54 141.42L142.31 139.57L143.13 137.18L145.42 137.77L147.28 136.25L149.92 136.16L150.82 137.24L155.21 134.29L160.06 136.83L161.91 136.82L161.74 134.92L163.67 136.57L165.97 136.77L166.92 138.43L169.37 140.91L171.28 142.25L171.31 145.51L172.38 146.93L175.96 147.04L176.03 142.42L177.45 141.91L178.64 142.61L179.23 145.04L179.96 145.87L182.22 145.72L183.24 146.22L187.78 146.25L191.67 149.70L193.27 151.91L194.06 153.97L193.35 156.68L191.47 161.94L192.11 164.71L193.89 164.58L195.85 165.36L195.99 167.39L199.09 168.37L199.12 169.46L200.40 169.26L202.08 171.69L202.34 173.41L203.57 174.01L203.34 177.70L200.76 177.20L200.68 178.25L202.54 178.53L203.17 179.72L202.15 181.40L204.78 183.26L204.95 185.43L208.57 185.15L208.54 186.58L210.07 189.47L213.35 190.50L214.98 192.89L214.89 193.59L216.84 197.83L219.57 197.99L222.99 195.16L224.11 194.91L227.30 195.66L227.82 193.51L230.15 194.58L232.73 194.34L235.82 190.87L239.27 189.58L240.55 187.21L242.30 188.06L242.58 186.76L245.23 185.91L247.04 186.34L248.72 185.65L251.84 185.16L253.98 181.28L255.84 182.80L257.55 183.04L258.19 181.70L257.61 179.66L258.25 174.17L260.55 174.10L261.60 171.85L263.63 171.61L265.23 170.14L267.73 171.03L268.23 169.70L270.57 169.92L271.16 168.29L272.87 167.99L273.22 169.38L274.31 167.94L276.03 168.12L275.55 166.94L276.02 164.62L277.30 163.49L279.44 163.47L281.71 164.19L283.88 165.84L286.15 166.89L288.41 166.22L287.80 161.94L288.86 159.73L288.01 156.44L289.53 154.68L289.20 152.21L287.06 151.56L286.54 150.36L283.20 147.61L282.60 146.22L282.76 143.90L281.50 140.65L280.29 139.67L278.74 136.50L279.25 136.24L277.40 134.44L277.27 133.08L275.97 130.66L273.27 129.67L273.54 128.55L271.57 126.31L272.54 125.66L272.74 121.44L274.19 119.70L277.07 118.23L276.26 115.35L274.23 113.73L273.73 109.69L274.38 108.07L273.86 106.11L275.38 105.70L277.39 104.08L279.54 101.43L279.56 99.92L277.58 98.50L269.20 96.25L266.00 97.21L262.50 100.62L261.12 100.98L259.49 97.68L257.27 99.43L257.64 100.80L255.15 101.13L253.66 99.70L251.88 99.77L249.23 100.61L248.68 101.50L247.37 99.74L248.85 96.68L247.63 93.49L246.55 92.20L242.43 90.49L238.31 88.34L236.43 85.43L234.67 85.17L233.79 83.39L231.56 82.38L229.25 82.72L225.38 81.39L224.84 80.01L225.89 79.08L225.72 77.74L224.17 75.60L220.34 73.03L219.71 70.57L217.82 68.02L220.28 63.84L220.24 61.68L221.84 61.50L223.96 59.49L223.95 57.75L222.06 54.81L222.85 51.35L222.95 47.84L224.31 47.47L225.87 47.98L228.30 51.44L230.40 52.03L231.17 49.61L232.08 49.28L233.09 46.49L234.39 46.34L234.94 43.31L236.03 42.14L238.24 42.33L239.67 43.42L241.74 43.48L243.07 40.05L245.56 40.01L248.67 37.88L248.98 36.75L250.20 36.98L251.79 36.22L257.24 34.87L257.59 38.45L259.75 40.12L264.11 41.05L264.27 43.01L266.19 45.58L266.33 48.77L268.86 51.03L271.29 51.75L270.48 53.51L271.74 53.95L274.51 53.56L277.81 56.94L280.33 58.83L281.43 58.99L281.99 60.96L281.03 62.06L278.73 61.39L277.54 62.29L278.49 62.91L285.58 62.96L291.33 65.66L300.19 65.73L303.45 66.49L305.74 67.47L307.65 69.05L308.98 71.68L308.97 73.08L312.21 76.11L315.64 80.18L318.64 80.21L321.36 79.67L323.78 77.78L327.56 76.88L329.22 77.10L332.91 79.08L336.38 80.25L335.16 83.16L335.20 84.67L337.99 85.52L338.42 86.54L337.90 88.96L336.38 91.63L337.46 93.74L336.33 98.46L338.60 100.86L341.96 103.08L343.66 103.33L343.94 105.45L345.46 105.55L347.07 104.52L348.17 105.61L347.49 108.66L348.38 109.22L347.83 111.95L346.82 112.69L345.42 115.32L344.61 118.56L345.53 118.72L346.53 118.59L347.80 121.37L348.96 120.73L351.51 122.19L354.11 122.36L356.53 125.01L359.08 125.39L359.98 127.25L360.03 129.96L362.42 130.65L364.09 130.49L363.13 133.10L364.58 132.99L367.64 134.42L369.20 135.69L371.30 135.70L372.05 134.65L373.90 136.48L378.73 136.18L381.58 133.92L383.16 133.97L384.05 135.29L386.64 135.80L387.82 132.98L391.33 133.64L393.35 132.31L396.38 135.21L395.40 137.08L397.92 137.97L399.69 140.40L400.48 142.38L401.94 143.10L404.85 142.69L408.49 141.12L410.92 139.35L414.40 138.54L415.05 136.91L416.50 137.05L419.84 139.86L420.99 141.50L420.58 143.84L420.89 145.23L422.62 146.32L424.46 150.15L425.46 150.55L427.28 149.70L428.71 148.11L430.53 147.73L431.46 146.74L431.68 144.63L430.53 142.52L431.43 142.00L433.39 142.62L435.27 144.92L438.76 147.82L439.49 149.89L438.27 153.01L439.67 155.84L439.68 158.86L442.25 162.25L444.24 167.02L445.97 168.50L449.71 166.30L451.61 166.40L452.32 167.40L452.40 169.32L451.41 171.28L451.49 174.06L451.07 177.53L450.49 178.12L451.42 180.01L450.91 183.68L449.86 188.68L448.71 190.58L447.34 190.97L447.05 192.48L448.40 193.53L448.89 195.62L451.45 197.56L453.56 195.77L455.16 195.65L457.19 193.77L462.14 193.09L463.66 193.64L467.06 193.61L470.14 194.74L471.28 195.63L473.33 196.06L472.73 194.47L473.16 193.37L475.41 192.91L476.10 193.78L478.48 194.46L480.34 193.65L481.06 190.71L482.62 188.57L483.71 190.84L485.25 191.35L486.95 190.88L487.29 191.56L490.53 191.61L490.71 192.85L492.31 192.54L491.93 191.47L494.49 190.89L496.94 189.44L497.41 188.15L503.34 188.36L505.10 188.03L506.83 190.16L509.64 191.51L511.70 190.76L514.99 191.76L513.84 193.35L511.39 193.44L510.30 196.06L512.41 196.96L511.86 200.83L512.49 205.78L505.42 213.12L504.29 213.88L505.07 217.84L503.69 229.00L502.34 229.10L503.63 230.70L503.46 233.51L503.65 238.51L496.83 235.79L495.22 235.57L494.17 238.75L491.98 241.39L491.24 244.42L490.99 247.84L490.26 250.30L491.92 253.14L491.59 254.72L492.07 256.32L488.64 259.81L487.11 260.67L483.60 260.29L483.30 261.20L484.69 262.92L486.74 263.12L485.70 265.32L485.29 269.46L483.43 272.78L478.88 275.31L480.14 277.12L478.81 280.21L479.31 281.81L480.99 282.00L484.46 281.61L486.81 284.20L486.83 285.18L485.06 285.98L486.18 289.67L488.00 289.85L488.63 291.29L490.34 292.28L491.55 293.78L493.22 294.41L493.39 297.37L494.66 296.82L498.12 296.47L500.74 294.86L505.23 292.98L509.67 291.44L511.27 289.43L510.74 286.94L512.50 283.82L513.94 283.04L516.32 284.12L518.86 286.31L520.27 289.23L520.64 293.87L520.03 301.03L518.68 301.42L518.57 302.72L520.22 302.45L520.28 305.61L518.10 304.98L517.57 305.53L520.63 306.33L521.21 308.75L519.38 308.50L518.97 310.06L522.05 310.39L522.97 312.75L523.53 315.98L523.73 321.08L524.85 323.88L527.34 326.13L532.40 326.22L533.25 327.90L530.86 329.94L524.19 332.09L522.35 333.52L522.00 335.29L523.03 341.17L523.67 342.53L524.58 347.05L526.43 345.70L529.58 345.51L530.30 347.55L532.09 347.42L531.52 349.88L532.81 353.60L531.02 355.41L531.66 357.93L532.89 359.12L534.89 359.19L535.72 361.76L536.84 362.08L539.01 360.11L541.56 360.92L542.29 362.75L542.46 365.52L541.57 366.69L541.85 368.46L542.90 369.46L546.33 369.05L548.14 369.97L549.89 369.62L553.94 365.24L555.23 368.23L558.79 369.05L559.71 368.50L564.22 368.73L567.86 367.64L569.99 367.57L572.46 369.44L574.55 368.45L577.01 368.13L578.40 366.00L580.65 365.83L581.69 364.99L583.84 365.70L584.36 366.50L589.73 368.14L591.65 369.24L594.18 368.96L595.98 367.15L598.86 366.33L599.03 365.16L598.16 362.85L597.39 362.48L596.16 360.06L596.00 356.58L597.46 355.36L596.73 346.19L597.62 345.27L600.60 346.51L603.96 347.04L607.00 345.91L607.12 344.14L606.19 343.26L606.93 342.36L607.42 337.64L606.65 336.75L607.07 335.18L608.07 334.54L610.70 336.13L611.08 334.21L612.47 333.40L611.52 330.55L612.53 330.16L612.52 328.30L614.86 328.58L617.71 327.62L619.41 328.10L618.68 329.15L619.02 331.04L620.81 330.30L623.12 331.26L624.93 331.41L626.08 330.12L628.95 330.18L633.72 328.02L635.96 327.82L637.71 328.45L638.52 329.93L638.11 331.98L639.00 333.55L637.57 333.66L636.87 336.09L637.52 337.22L641.26 336.13L641.37 339.42L642.72 342.43L645.13 344.22L649.97 350.80L651.26 351.46L661.82 350.99L662.40 353.55L662.75 357.37L664.16 363.92L665.23 365.74L665.35 370.10L665.74 371.33L665.30 382.66L667.00 384.94L666.52 387.08L667.04 388.36L668.58 388.83L666.98 391.38L667.00 394.12L665.39 394.65L663.20 393.78L662.14 390.07L660.64 391.14L660.38 395.08L657.25 396.68L657.34 397.87L659.14 399.42L659.30 401.10L657.50 402.53L656.70 405.69L655.55 407.49L656.36 408.66L654.41 408.85L652.35 410.84L648.75 413.27L647.16 415.58L645.48 415.12L644.56 413.90L644.12 410.44L641.34 407.66L640.73 404.83L637.85 404.29L635.76 404.96L634.28 406.71L631.69 406.72L629.94 404.87L629.48 402.76L625.92 399.11L625.34 397.43L622.37 397.68L622.31 398.81L618.25 397.48L619.77 396.92L619.43 394.00L621.34 392.35L621.12 391.40L618.19 392.30L615.91 394.22L613.50 394.51L612.40 395.58L609.25 394.80L609.36 393.59L608.11 392.45L608.90 391.87L608.94 389.74L607.29 389.93L605.54 392.78L602.98 393.09L601.56 392.13L601.72 390.46L599.04 389.39L597.10 390.26L596.57 391.91L594.41 390.71L594.31 388.64L590.30 388.96L590.72 392.06L590.10 392.10L588.98 389.25L589.06 392.06L586.00 390.95L583.58 391.27L580.75 393.71L579.34 391.35L576.17 390.53L575.62 389.84L573.15 391.01L571.42 392.42L570.57 396.24L573.65 398.90L575.75 399.66L577.20 400.97L576.62 403.43L578.02 403.85L578.46 405.24L577.08 407.09L574.78 407.41L574.92 411.06L577.08 411.57L577.16 412.49L580.02 412.99L582.28 412.50L582.91 411.46L586.95 412.56L589.01 411.98L589.50 413.43L588.66 419.55L588.98 421.13L588.50 423.85L587.46 425.76L589.15 428.47L590.41 427.62L590.02 430.25L590.89 432.00L589.55 433.08L590.57 433.41L590.23 434.65L591.75 435.37L591.07 437.01L588.78 436.84L588.16 437.70L589.83 439.04L587.42 439.16L584.75 441.09L584.71 442.66L585.79 442.66L586.30 444.52L584.60 447.90L585.81 449.38L587.03 449.80L585.81 453.13L582.38 457.62L579.81 458.91L578.79 458.40L575.66 459.44L573.09 459.58L572.22 458.90L570.28 459.89L568.81 459.41L567.03 460.66L565.97 460.07L564.83 461.25L562.66 460.34L562.17 462.45L560.74 463.06L560.57 465.38L562.31 470.11L561.30 469.44L560.49 470.97L561.08 473.14L559.67 473.08L557.24 474.10L555.83 476.55L552.56 478.05L551.45 478.98L548.74 478.85L547.29 480.86L545.76 480.90L545.54 483.13L544.33 483.92L545.70 485.61L544.47 488.25L546.75 490.75L545.01 491.90L545.20 495.80L544.64 496.89L543.10 497.15L543.47 499.66L541.97 501.58L542.04 503.65L541.29 506.09L542.90 506.92L544.47 508.74L546.96 508.88L548.86 511.06L552.42 512.58L554.21 513.97L557.15 514.84L556.38 516.70L556.33 518.58L557.61 519.91L559.83 521.15L561.91 521.40L559.18 529.42L558.59 532.38L561.68 532.43L562.80 534.58L564.68 535.21L566.18 534.30L567.04 535.29L566.90 537.40L564.46 538.49L565.62 538.62L567.84 540.39L568.56 539.72L569.61 540.81L571.74 537.94L572.27 538.86L574.89 538.26L576.01 536.60L577.27 536.04L578.69 537.28L579.88 535.65L582.02 535.86L583.01 537.50L582.08 538.27L583.55 539.06L583.83 540.73L587.25 541.00L588.37 541.64L588.73 543.15L590.25 544.32L587.76 546.54L586.68 546.58L586.39 547.95L583.97 550.17L582.80 549.44L582.25 550.91L582.94 552.99L582.31 554.61L584.40 556.15L586.75 556.24L588.36 556.99L589.85 556.39L593.07 556.43L593.44 558.51L594.80 557.33L595.62 557.69L597.22 553.48L597.11 551.43L598.10 549.81L600.62 549.85L601.48 548.96L605.14 551.77L602.79 553.48L603.74 555.21L604.70 558.37L605.68 559.89L607.41 559.94L608.15 558.33L610.25 558.02L613.87 559.12L615.37 561.29L615.67 563.38L614.87 564.69L616.63 565.06L616.05 567.79L617.32 569.37L616.31 571.59L616.11 575.06L617.61 575.14L617.89 577.32L617.57 580.56L616.70 584.27L615.63 586.99L614.98 590.13L615.51 594.17L612.79 599.20L612.24 598.96L609.61 601.80L605.31 603.28L603.01 603.35L601.06 604.30L600.49 603.82L600.92 601.49L600.19 599.99L598.61 600.50L597.31 602.64L595.74 607.47L593.68 611.30L593.47 616.13L591.24 614.74L591.75 615.78L594.50 618.31L599.61 619.10L602.34 622.24L602.55 625.65L604.59 627.45L605.67 627.66L608.08 626.31L608.81 627.27L612.78 625.68L615.51 625.23L618.68 625.97L622.20 624.89L623.63 625.67L627.76 626.01L632.29 626.01L632.67 627.15L635.14 626.70L636.86 625.33L638.01 625.94L640.46 625.90L641.83 626.74L643.81 625.89L645.49 626.85L647.21 625.57L650.12 626.44L650.37 623.78L652.28 621.86L654.00 621.71L655.31 619.38L656.70 619.19L657.88 616.13L660.54 616.28L661.26 615.15L663.95 616.33L663.61 619.81L664.65 621.16L666.27 619.71L666.75 621.37L669.36 622.28L669.69 623.08L671.40 622.63L671.34 621.81L673.05 621.93L673.87 623.81L677.91 621.61L680.90 621.16L683.60 621.44L684.23 622.35L685.47 620.60L686.10 618.41L686.08 615.05L687.03 614.66L688.69 617.09L689.23 620.14L690.42 620.53L688.30 626.90L687.54 630.44L688.38 633.25L689.21 632.94L690.35 634.42L692.66 632.61L694.24 633.51L691.84 634.56L692.15 637.01L693.50 636.23L695.67 637.23L696.81 635.69L699.10 636.52L701.45 638.63L702.30 640.10L704.54 639.67L705.52 640.77L705.97 639.23L707.28 638.78L710.14 640.16L711.55 639.52L713.16 639.80L714.83 641.58L716.94 642.81L718.57 644.85L718.98 647.45L720.14 648.37L722.75 648.28L724.80 644.82L726.28 644.62L726.33 647.10L730.00 648.99L727.88 650.95L727.12 652.37L727.92 656.07L727.38 659.17L727.78 663.82L726.31 666.27L725.17 666.77L723.87 668.60L721.07 670.80L719.90 672.88L720.16 676.29L719.90 679.45L717.47 681.18L716.37 685.08L716.77 685.94L716.75 689.50L718.92 692.59L719.22 696.68L717.08 696.72L716.10 697.39L711.69 705.98L709.14 707.09L706.85 705.77L705.17 706.45L704.98 709.95L705.83 711.42L705.11 712.77L705.56 718.38L703.10 721.94L701.18 724.06L700.50 726.80L698.35 728.77L695.27 729.03L693.41 726.27L692.77 722.83L692.16 721.70L690.38 722.72L689.35 722.55L686.73 724.88L685.05 725.35L683.66 727.43L682.11 731.22L680.48 732.79L677.43 733.69L675.15 733.42L672.66 733.97L671.38 732.96L669.78 734.85L671.91 737.08L671.98 738.43L673.54 739.58L673.54 741.07L670.72 743.15L669.46 745.70L670.28 748.59L673.12 749.36L673.08 750.71L674.62 751.96L676.95 751.60L680.72 748.38L682.62 748.07L682.93 750.04L684.05 752.55L683.17 755.83L683.78 757.58L684.02 763.22L686.02 764.39L686.50 766.80L685.99 769.61L688.00 769.46L688.84 771.15L688.50 773.12L689.21 773.89L692.50 774.04L693.85 775.55L693.40 776.69L691.37 777.35L689.82 778.93L685.98 779.91L684.98 777.48L682.99 776.04L678.82 777.40L677.17 779.83L675.50 781.22L673.59 781.83L670.95 781.36L669.90 783.74L670.77 784.68L669.35 788.89L668.31 790.21L667.35 788.50L664.86 788.15L664.18 789.98L662.29 789.87L657.67 788.50L656.87 787.63L653.53 787.61L650.96 786.47L647.91 784.26L645.44 785.67L643.91 787.57L642.12 787.26L641.75 786.23L638.88 786.25L635.30 783.41L632.90 782.63L632.90 780.00L631.09 780.26L630.10 779.53L628.77 780.24L628.10 778.17L625.31 779.63L625.30 780.62L622.59 782.81L621.20 783.08L619.93 784.51L617.01 785.85L617.29 788.68L616.75 791.42L618.45 796.35L617.38 797.53L618.94 798.35L620.43 802.64L623.63 803.35L624.36 805.16L623.00 805.91L621.55 807.91L614.74 811.11L613.04 811.54L611.99 813.34L613.56 814.72L614.93 814.14L617.18 814.96L619.50 814.74L619.37 816.35L618.22 818.34L618.09 820.05L615.80 820.81L615.39 822.82L615.99 824.00L616.36 827.91L616.86 829.19L618.22 829.59L619.57 831.40L618.58 833.24L620.34 835.36L619.68 837.40L618.54 838.31L619.24 840.18L618.80 841.28L619.89 843.60L618.73 847.33L619.18 851.12L617.72 850.97L615.85 849.59L614.67 851.30L612.37 850.56L610.96 851.73L611.87 855.06L611.96 857.86L611.35 859.21L606.41 863.31L605.66 864.52L602.16 867.77L600.42 866.55L598.76 867.16L598.07 869.55L600.27 871.03L599.32 872.06L597.35 871.88L596.46 872.73L595.95 877.03L597.10 878.56L597.79 881.76L597.16 885.63L594.21 888.43L593.33 890.75L590.71 891.23L587.99 894.69L586.76 897.70L582.85 902.15L581.92 902.41L580.82 901.22L578.83 900.29L576.20 902.10L572.06 903.02L569.30 907.35L568.54 907.35L566.39 911.29L561.30 913.88L560.46 917.68L560.90 919.37L560.61 923.59L558.13 925.09L555.08 925.89L553.72 924.66L550.86 926.35L548.72 925.30L545.50 925.72L544.17 925.18L543.56 926.54L540.46 930.96L538.83 931.49L535.42 927.51L533.38 927.67L532.80 930.54L534.19 935.55L534.20 940.39L530.57 940.85L529.81 939.68L528.35 940.25L527.10 939.48L525.33 939.77L524.28 938.88L521.99 940.17L519.81 940.77L517.77 945.10L516.13 945.13L515.41 943.25L513.71 943.49L511.81 942.22L507.76 941.04L506.79 938.66L508.13 937.78L508.04 934.80L506.52 931.83L508.90 928.76L508.78 927.01L507.54 925.46L503.86 923.18L502.97 921.68L499.91 921.13L495.22 919.51L494.08 915.51L489.85 913.60L488.34 913.46L486.99 914.31L485.53 916.31L482.61 914.86L481.15 915.71L478.77 918.40L476.14 917.54L471.59 919.05L469.63 918.98L467.74 917.61L466.03 917.46L462.79 915.93L461.74 914.54L459.47 914.24L457.65 914.81L454.13 917.10L451.50 916.53L449.00 918.06L444.84 918.50L442.31 917.30L441.21 915.21L441.10 911.87L440.62 910.45L439.15 910.19L438.05 907.62L436.06 907.09L433.18 908.59L430.30 911.12L427.03 912.31L425.21 911.21L422.85 911.38L421.12 910.65L420.70 911.65L419.37 909.92L417.78 904.54L418.82 900.30L416.76 898.69L413.42 899.35L410.55 897.83L407.26 893.05L408.05 887.96L407.74 883.83L405.98 882.14L404.74 881.76L401.64 877.10L400.99 874.57L403.29 869.03L402.40 866.29L400.13 866.55L397.31 867.47L396.12 871.90L393.22 872.65L391.99 871.16L390.63 866.73L389.84 866.27L388.73 867.43L385.40 868.04L384.55 868.64L383.84 871.08L381.75 870.68L380.73 869.82L378.70 869.61L377.51 867.04L378.61 864.72L379.34 861.06L378.16 856.15L377.06 855.09L372.77 853.04L371.19 852.94L368.64 853.92L366.98 853.90L362.75 855.74L360.68 857.04L359.69 858.48L360.43 862.16L359.65 864.35L357.11 865.43L354.52 868.64L351.66 869.44L352.00 871.10L354.51 873.37L359.69 875.76L360.81 878.32L360.79 879.87L356.85 883.34L356.79 884.54L358.88 887.40L357.49 890.24L353.50 892.88L351.30 893.43L348.42 895.31L347.07 895.65L343.14 894.81L340.31 895.22L338.62 896.73L336.66 900.02L332.02 901.30L328.93 903.69L322.30 908.06L318.71 913.75L317.11 914.89L314.22 915.77L310.89 915.46L308.67 914.77L308.53 913.47L309.60 911.17L307.83 910.49L307.13 911.01L305.71 909.82L302.73 912.10L301.23 915.11L300.00 915.73L299.26 911.26L295.20 908.95L294.72 907.66L292.51 905.32L289.76 903.23L289.81 901.80L291.48 899.42L293.46 897.71L293.96 895.55L292.87 894.50L290.46 894.71L290.09 893.25L292.13 892.29L292.98 890.64L294.93 886.32L297.28 885.20L299.85 881.37L302.60 879.50L303.56 876.70L306.01 874.59L308.71 876.33L310.02 875.87L313.33 873.00L316.03 867.84L320.52 863.36L323.66 858.83L325.03 854.36L325.01 852.97L326.23 849.13L324.43 845.79L321.60 843.77L318.18 845.65L316.80 845.46L316.70 847.71L315.74 846.78L315.86 839.25L311.93 840.99L309.65 836.86L309.09 835.07L307.15 834.21L306.31 831.91L304.70 831.90L303.78 830.47L299.81 831.05L294.73 828.15L291.96 827.09L288.40 827.16L283.76 828.14L281.64 830.04L280.09 832.37L277.93 837.89L277.91 842.25L276.93 849.16L276.08 853.49L275.08 856.00L273.55 857.42L271.20 858.14L264.49 858.07L262.71 858.37L258.90 861.20L251.66 865.37L246.84 867.47L244.40 868.85L241.42 871.56L239.88 873.47L235.25 876.95L232.41 878.14L231.26 877.95L227.41 872.10L224.58 870.26L221.53 869.99L218.59 870.28L213.87 871.66L213.40 867.36L213.78 861.61L212.49 857.47L209.30 853.05L206.60 848.91L205.46 847.99L204.86 845.58L205.98 843.55L205.51 838.61L207.08 835.72L207.47 834.12L205.76 830.47L205.65 828.92L206.47 827.23L206.31 823.82L206.99 821.30L206.50 818.53L205.03 817.26L203.29 814.13L202.34 810.96L202.24 809.03L203.40 806.86L203.46 804.56L200.78 801.60L198.67 801.06L197.92 798.86L195.81 797.17L193.25 796.22L192.38 794.13L191.86 789.98L191.21 789.16L187.90 787.50L185.01 787.22L182.54 788.21L179.98 786.69L179.87 785.69L181.43 784.22L181.77 782.46L178.81 778.61L177.10 774.65L179.46 771.48L180.68 771.31L182.48 768.27L183.87 767.56L184.93 768.03L186.10 766.74L182.38 765.93L181.61 763.49L178.56 761.98L178.45 760.79L179.44 759.03L179.04 756.86L180.75 752.62L182.24 751.19L180.08 749.53L179.25 747.22L177.53 746.43L176.85 743.49L175.73 741.77L176.25 740.23L174.36 738.56L173.05 738.28L171.76 736.14L168.76 735.40L168.18 737.14L167.45 736.83L165.78 733.77L166.83 732.17L166.09 729.09L164.45 727.80L164.19 726.32L161.02 724.54L160.58 722.98L159.13 721.64L159.85 720.12L159.57 717.84L161.16 714.15L162.12 710.19L163.57 708.88L166.18 708.85L167.59 710.37L169.73 709.38L172.20 709.32L172.62 707.47L174.68 706.29L174.84 704.86L173.25 704.46L174.31 702.13L174.00 699.09L171.80 696.88L171.90 694.68L174.02 692.26L174.28 690.70L175.94 689.88L177.22 688.34L181.20 686.66L184.08 686.34L184.63 684.01L189.69 681.04L190.53 679.06L193.05 678.15L195.46 675.90L197.65 675.22L199.08 675.65L199.82 674.49L204.55 674.69L204.25 672.53L202.87 668.06L202.67 664.98L200.79 664.67L196.22 665.13L195.49 664.19L194.99 661.18L193.14 661.19L191.62 659.93L188.29 659.07L186.11 659.84L184.99 658.99L185.53 656.68L185.17 654.77L183.10 653.88L180.73 651.48L179.73 651.74L177.48 648.26L177.32 645.13L176.40 642.61L174.81 641.62L173.02 642.37L170.70 644.85L168.91 645.29L166.58 644.51L164.33 645.04L161.92 647.52L160.24 647.61L159.36 646.71L158.15 642.50L155.91 640.70L154.08 636.93L150.07 632.36L146.73 631.23L143.37 630.65L142.01 630.89L140.59 632.55L139.52 635.21L135.81 637.10L134.78 641.18L133.16 642.21L129.32 639.42L126.55 634.05L126.21 629.02L126.40 627.03L124.99 624.00L122.92 621.55L121.68 620.79L120.72 621.74L119.70 621.13L116.62 621.25L115.64 619.33L114.38 618.42L114.84 612.10L113.17 612.48L112.06 607.24L108.89 606.58L106.56 608.67L105.75 607.78L101.78 606.69L103.31 605.43L102.32 602.92L103.41 602.13L104.83 599.66L102.01 596.91L103.44 594.67L103.78 590.41L104.39 589.20L102.60 585.70L101.65 581.53L102.52 580.07L104.36 579.27L105.41 577.96L108.21 576.09L110.08 572.41L110.52 570.37L110.03 569.61L111.59 566.74L111.76 565.22L118.84 561.15L119.05 558.81L117.19 555.83L118.26 554.77L118.43 552.91L119.89 550.63L122.78 548.92L125.25 546.20L128.43 546.77L130.11 544.39L132.71 543.54L133.34 542.19L135.47 540.46L138.07 539.31L140.63 536.41L144.02 535.52L146.69 532.29L148.45 532.69L149.53 534.06L151.54 533.67L154.33 534.98L154.98 532.78L156.12 531.73L159.21 531.69L159.92 530.73L162.92 532.12L166.89 535.15L169.19 532.51L169.99 533.16L172.01 530.93L173.20 533.18L174.72 532.69L177.15 532.77L179.44 530.01L180.83 529.96L181.53 526.57L181.26 525.15L179.92 523.54L178.29 522.86L178.69 516.94L179.08 514.73L179.88 514.16L181.86 509.58L182.29 507.77L181.69 505.08L180.65 503.82L180.99 501.26L182.73 496.50L182.93 494.75L184.29 493.71L183.38 492.69L183.41 489.91L182.19 489.16L183.40 487.70L182.59 485.39L183.41 483.81L185.14 482.58L185.58 480.53L184.10 479.39L183.22 475.76L183.93 475.06L185.25 468.57L185.48 465.39L184.27 462.74L183.03 461.46L182.68 458.72L181.19 454.56L181.49 449.85L182.27 446.67L180.95 444.77L180.54 442.16L179.37 441.79L180.35 440.02L180.00 434.93L179.21 434.24L179.02 429.51L179.19 426.42L177.75 422.38L177.77 420.51L176.27 419.06L176.87 418.02L176.78 414.99L174.07 414.50L175.26 412.63L176.57 412.15L176.91 409.25L175.57 407.78L175.38 406.57L172.43 406.62L171.36 407.08L171.59 405.74L173.00 404.28L175.36 402.92L176.04 399.79L179.24 397.65L180.82 395.79L183.49 395.69L181.59 394.08L178.08 394.18L177.50 395.67L173.65 400.91L171.38 401.91L170.50 403.10L170.73 407.18L168.14 407.00L165.24 409.91L162.98 412.77L161.84 413.01L162.73 409.85L160.45 406.47L159.76 408.70L158.35 410.82L156.11 411.48L150.12 408.20L148.79 409.55L148.80 410.75L150.13 412.44L149.46 413.02L146.41 413.21L147.24 415.84L147.10 417.79L146.27 419.17L145.17 422.99L143.53 423.19L143.77 419.96L143.21 419.70L141.95 421.67L139.24 423.76L135.92 420.22L133.22 421.38L129.95 424.19L128.45 423.41L130.72 422.18L130.50 420.96L127.52 420.43L126.07 417.97L123.98 417.43L124.11 416.43L122.86 415.94L121.94 413.15L121.84 412.83ZM296.67 890.99L297.68 892.84L297.33 890.60L296.67 890.99ZM297.79 892.94L297.57 894.31L299.35 893.94L299.16 892.82L297.79 892.94Z"/>
+          <g class="map-labels" id="mapLabels" aria-hidden="true">
+          <text class="city-label" data-city="hefei" x="393.8" y="535.1" text-anchor="middle">合肥</text>
+          <text class="city-label" data-city="wuhu" x="516.3" y="657.3" text-anchor="middle">芜湖</text>
+          <text class="city-label" data-city="bengbu" x="403.4" y="288.1" text-anchor="middle">蚌埠</text>
+          <text class="city-label" data-city="huainan" x="287.6" y="404.3" text-anchor="middle">淮南</text>
+          <text class="city-label" data-city="maanshan" x="568.1" y="564.8" text-anchor="middle">马鞍山</text>
+          <text class="city-label" data-city="huaibei" x="271.4" y="190.1" text-anchor="middle">淮北</text>
+          <text class="city-label" data-city="tongling" x="410.2" y="692.5" text-anchor="middle">铜陵</text>
+          <text class="city-label" data-city="anqing" x="260.3" y="740.8" text-anchor="middle">安庆</text>
+          <text class="city-label" data-city="huangshan" x="498.9" y="856.9" text-anchor="middle">黄山</text>
+          <text class="city-label" data-city="chuzhou" x="523.6" y="383.9" text-anchor="middle">滁州</text>
+          <text class="city-label" data-city="fuyang" x="151.3" y="335.2" text-anchor="middle">阜阳</text>
+          <text class="city-label" data-city="suzhou" x="396.3" y="157.8" text-anchor="middle">宿州</text>
+          <text class="city-label" data-city="luan" x="228.4" y="553.0" text-anchor="middle">六安</text>
+          <text class="city-label" data-city="bozhou" x="221.2" y="245.4" text-anchor="middle">亳州</text>
+          <text class="city-label" data-city="chizhou" x="417.5" y="801.5" text-anchor="middle">池州</text>
+          <text class="city-label" data-city="xuancheng" x="613.7" y="721.8" text-anchor="middle">宣城</text>
+          </g>
+        </svg>
+        <div class="north-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 28"><path d="M12 2 19 24 12 19 5 24Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M12 6v10" stroke="currentColor" stroke-width="1.1"/></svg>
+          <span>N</span>
+        </div>
+        <span class="map-note">边界示意图 · 非标准地图</span>
+      </div>
+      <div class="card-foot">
+        <span><b>16</b>个地级市</span>
+        <span><b>14.01</b>万平方公里</span>
+        <span class="foot-tip">点击任意区域查看城市介绍</span>
+      </div>
+    </section>
+
+    <aside class="index-card" aria-labelledby="indexHeading">
+      <div class="index-head">
+        <h2 id="indexHeading">城市索引</h2>
+        <span>16 CITIES</span>
+      </div>
+      <p class="index-sub">按区域浏览，或直接点击地图。每个区域都可以打开一张城市名片。</p>
+      <div class="index-groups" id="cityList">
+        <section class="index-group" aria-label="皖北城市"><p class="group-label" style="--dot:#c3a05f"><span class="group-bar"></span>皖北<em>6</em></p><div class="city-list"><button type="button" class="city-item" data-city="huaibei" style="--dot:#c6a363"><span class="city-dot"></span><span class="city-cn">淮北</span><span class="city-en">HUAIBEI</span></button><button type="button" class="city-item" data-city="bozhou" style="--dot:#c19b58"><span class="city-dot"></span><span class="city-cn">亳州</span><span class="city-en">BOZHOU</span></button><button type="button" class="city-item" data-city="suzhou" style="--dot:#cba86a"><span class="city-dot"></span><span class="city-cn">宿州</span><span class="city-en">SUZHOU</span></button><button type="button" class="city-item" data-city="bengbu" style="--dot:#bd9652"><span class="city-dot"></span><span class="city-cn">蚌埠</span><span class="city-en">BENGBU</span></button><button type="button" class="city-item" data-city="fuyang" style="--dot:#c8a563"><span class="city-dot"></span><span class="city-cn">阜阳</span><span class="city-en">FUYANG</span></button><button type="button" class="city-item" data-city="huainan" style="--dot:#c09a57"><span class="city-dot"></span><span class="city-cn">淮南</span><span class="city-en">HUAINAN</span></button></div></section>
+        <section class="index-group" aria-label="江淮城市"><p class="group-label" style="--dot:#6f9785"><span class="group-bar"></span>江淮<em>4</em></p><div class="city-list"><button type="button" class="city-item" data-city="hefei" style="--dot:#6d9986"><span class="city-dot"></span><span class="city-cn">合肥</span><span class="city-en">HEFEI</span></button><button type="button" class="city-item" data-city="chuzhou" style="--dot:#729d8a"><span class="city-dot"></span><span class="city-cn">滁州</span><span class="city-en">CHUZHOU</span></button><button type="button" class="city-item" data-city="luan" style="--dot:#68917f"><span class="city-dot"></span><span class="city-cn">六安</span><span class="city-en">LU'AN</span></button><button type="button" class="city-item" data-city="anqing" style="--dot:#76a08d"><span class="city-dot"></span><span class="city-cn">安庆</span><span class="city-en">ANQING</span></button></div></section>
+        <section class="index-group" aria-label="皖南城市"><p class="group-label" style="--dot:#7794ae"><span class="group-bar"></span>皖南<em>6</em></p><div class="city-list"><button type="button" class="city-item" data-city="huangshan" style="--dot:#7694af"><span class="city-dot"></span><span class="city-cn">黄山</span><span class="city-en">HUANGSHAN</span></button><button type="button" class="city-item" data-city="chizhou" style="--dot:#7c9ab4"><span class="city-dot"></span><span class="city-cn">池州</span><span class="city-en">CHIZHOU</span></button><button type="button" class="city-item" data-city="xuancheng" style="--dot:#7190ab"><span class="city-dot"></span><span class="city-cn">宣城</span><span class="city-en">XUANCHENG</span></button><button type="button" class="city-item" data-city="tongling" style="--dot:#809db7"><span class="city-dot"></span><span class="city-cn">铜陵</span><span class="city-en">TONGLING</span></button><button type="button" class="city-item" data-city="wuhu" style="--dot:#7492ad"><span class="city-dot"></span><span class="city-cn">芜湖</span><span class="city-en">WUHU</span></button><button type="button" class="city-item" data-city="maanshan" style="--dot:#7896b0"><span class="city-dot"></span><span class="city-cn">马鞍山</span><span class="city-en">MA'ANSHAN</span></button></div></section>
+      </div>
+      <div class="index-foot">
+        <p>皖北 · 江淮 · 皖南</p>
+        <span>点击查看简介</span>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="page-foot">
+    <span>地图边界：DataV.GeoAtlas</span>
+    <span>城市介绍据公开资料整理 · 仅作科普展示</span>
+  </footer>
+</div>
+
+<div class="modal" id="cityModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <article class="sheet" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc">
+    <button class="sheet-close" type="button" data-close aria-label="关闭城市介绍">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2l12 12M14 2 2 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div class="sheet-head">
+      <span class="sheet-badge" id="modalRegion"></span>
+      <div class="sheet-titles">
+        <h2 id="modalTitle"></h2>
+        <p id="modalEn"></p>
+      </div>
+      <span class="sheet-glyph" id="modalGlyph" aria-hidden="true"></span>
+    </div>
+    <p class="sheet-tagline" id="modalTagline"></p>
+    <div class="sheet-stats">
+      <div><span>面积</span><strong id="modalArea"></strong><em>km²</em></div>
+      <div><span>常住人口</span><strong id="modalPop"></strong><em>万人</em></div>
+      <div><span>所属区域</span><strong id="modalRegionText"></strong><em>地区</em></div>
+    </div>
+    <p class="sheet-desc" id="modalDesc"></p>
+    <div class="sheet-tags" id="modalTags"></div>
+    <div class="sheet-spots">
+      <h3>城市名片 <span>HIGHLIGHTS</span></h3>
+      <ul id="modalSpots"></ul>
+    </div>
+    <p class="sheet-source">常住人口为 2023 年约数；城市介绍为简要概括，欢迎按需补充。</p>
+  </article>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const CITIES = {"huaibei":{"name":"淮北市","short":"淮北","en":"HUAIBEI","region":"皖北","area":"2,741","pop":"194.4","tagline":"运河故里，能源之城","desc":"因煤而兴的皖北城市，隋唐大运河曾在此流淌。相山森林公园、南湖湿地与临涣古镇的茶馆，构成一幅刚柔并济的皖北生活图景。","tags":["煤城","大运河","口子酒"],"spots":["相山公园","南湖湿地","临涣古镇","隋唐大运河遗址"]},"bozhou":{"name":"亳州市","short":"亳州","en":"BOZHOU","region":"皖北","area":"8,374","pop":"496.0","tagline":"药都酒乡，曹魏故里","desc":"商汤故都，曹操、华佗故里，国家历史文化名城。花戏楼的砖雕木雕精美绝伦，曹操运兵道在地下蜿蜒；作为“中华药都”，中药材香气弥漫全城。","tags":["历史文化名城","中药材","古井贡酒"],"spots":["花戏楼","曹操运兵道","华祖庵","古井酒文化博览园"]},"suzhou":{"name":"宿州市","short":"宿州","en":"SUZHOU","region":"皖北","area":"9,939","pop":"526.9","tagline":"楚汉故地，奇石梨乡","desc":"皖北门户，九州通衢。楚汉相争的垓下故事、虞姬墓的传说在此流传；灵璧奇石、砀山梨园与皇藏峪的青山，让平原地带多了几分奇趣。","tags":["皖北门户","灵璧奇石","砀山梨"],"spots":["皇藏峪","虞姬墓","灵璧奇石文化园","砀山梨园"]},"bengbu":{"name":"蚌埠市","short":"蚌埠","en":"BENGBU","region":"皖北","area":"5,952","pop":"326.7","tagline":"淮上明珠，铁路枢纽","desc":"淮河穿城而过，古称“珠城”，是皖北重要的交通枢纽和工业城市。双墩遗址、禹会诸侯的传说与龙子湖的波光，让这座火车拉来的城市兼有远古回响与市井烟火。","tags":["淮河文化","交通枢纽","珠城"],"spots":["龙子湖","张公山公园","涂山","蚌埠市博物馆"]},"fuyang":{"name":"阜阳市","short":"阜阳","en":"FUYANG","region":"皖北","area":"10,118","pop":"808.4","tagline":"管仲故里，颍淮粮仓","desc":"皖北人口大市，淮河最大支流颍河穿境而过。这里孕育了管仲、鲍叔牙，颍州西湖曾与杭州西湖齐名；八里河与万亩良田铺展成平原上的舒展画卷。","tags":["人口大市","管仲","颍州西湖"],"spots":["颍州西湖","八里河","阜阳生态乐园","管仲故里"]},"huainan":{"name":"淮南市","short":"淮南","en":"HUAINAN","region":"皖北","area":"5,533","pop":"301.6","tagline":"八公山下，豆腐故里","desc":"八公山下，淮河之滨，楚风汉韵在此沉淀。这里是豆腐的发源地，也是淝水之战的古战场；寿县古城墙与安丰塘至今仍讲述着千年故事。","tags":["能源之都","楚汉文化","寿县古城"],"spots":["八公山","寿县古城","安丰塘","焦岗湖"]},"hefei":{"name":"合肥市","short":"合肥","en":"HEFEI","region":"江淮","area":"11,445","pop":"985.3","tagline":"庐州古韵，科创之城","desc":"古称庐州，安徽省会，环巢湖而建。全国重要的科教基地和综合性国家科学中心，量子信息、新能源汽车等产业在此集聚。城市气质一半是包公故里的厚重，一半是科创之城的锐气。","tags":["省会","科教名城","环巢湖"],"spots":["包公园","三河古镇","巢湖姥山岛","安徽博物院"]},"chuzhou":{"name":"滁州市","short":"滁州","en":"CHUZHOU","region":"江淮","area":"13,516","pop":"405.5","tagline":"醉翁之意，改革之源","desc":"皖东门户，南京都市圈重要成员。欧阳修在此写下《醉翁亭记》，小岗村按下中国农村改革的第一枚红手印；琅琊山的林壑与明皇陵的石刻相映成趣。","tags":["南京都市圈","醉翁亭","小岗村"],"spots":["琅琊山","醉翁亭","明皇陵","小岗村"]},"luan":{"name":"六安市","short":"六安","en":"LU'AN","region":"江淮","area":"15,451","pop":"434.3","tagline":"大别门户，将军故里","desc":"大别山北麓的门户，红色老区与生态绿城。天堂寨的飞瀑、万佛湖的碧水、白马尖的云海，构成皖西最动人的山水长卷；六安瓜片清香悠长。","tags":["红色老区","大别山","六安瓜片"],"spots":["天堂寨","万佛湖","白马尖","皖西大裂谷"]},"anqing":{"name":"安庆市","short":"安庆","en":"ANQING","region":"江淮","area":"13,590","pop":"411.5","tagline":"黄梅故里，桐城文章","desc":"曾为安徽省会，国家历史文化名城。黄梅戏在此婉转传唱，桐城派文章甲天下；天柱山擎起皖西南的脊梁，振风塔守望着长江。","tags":["历史文化名城","黄梅戏","天柱山"],"spots":["天柱山","迎江寺振风塔","菱湖","桐城文庙"]},"huangshan":{"name":"黄山市","short":"黄山","en":"HUANGSHAN","region":"皖南","area":"9,807","pop":"131.7","tagline":"徽州故里，天下黄山","desc":"古称徽州，徽商故里、徽文化核心区。黄山集世界文化与自然双遗产于一身，宏村、西递的白墙黛瓦倒映在新安江的山水间。","tags":["徽文化","世界遗产","徽商"],"spots":["黄山","宏村","西递","屯溪老街"]},"chizhou":{"name":"池州市","short":"池州","en":"CHIZHOU","region":"皖南","area":"8,392","pop":"132.3","tagline":"千载诗人地，九华佛国","desc":"依九华山而居，临长江而卧，素有“千载诗人地”之称。李白、杜牧、苏轼都曾在此留下诗篇；杏花村的酒旗、牯牛降的原始森林与平天湖的月色，皆是江南意韵。","tags":["九华山","生态绿城","杏花村"],"spots":["九华山","杏花村","牯牛降","平天湖"]},"xuancheng":{"name":"宣城市","short":"宣城","en":"XUANCHENG","region":"皖南","area":"12,313","pop":"248.7","tagline":"宣纸之乡，诗画皖南","desc":"皖南山水与徽文化交汇之地，文房四宝中的宣纸、宣笔皆出于此。敬亭山、桃花潭、查济古村与龙川胡氏宗祠，串起一条诗画江南的线索。","tags":["文房四宝","徽文化","敬亭山"],"spots":["敬亭山","龙川","桃花潭","查济古村"]},"tongling":{"name":"铜陵市","short":"铜陵","en":"TONGLING","region":"皖南","area":"3,008","pop":"130.1","tagline":"古铜都，皖江门户","desc":"采冶铜的历史绵延三千年，被誉为“中国古铜都”。天井湖嵌在城中，大通古镇临江而居，工业遗产与山水洲城在这里交织。","tags":["铜工业","古铜都","长江"],"spots":["天井湖","大通古镇","铜官山","浮山"]},"wuhu":{"name":"芜湖市","short":"芜湖","en":"WUHU","region":"皖南","area":"6,026","pop":"375.6","tagline":"江东名邑，长江明珠","desc":"位于长江之滨，古称鸠兹，是安徽融入长三角的桥头堡。奇瑞汽车、机器人产业和港口经济让这座“江东名邑”充满活力，方特乐园与鸠兹古镇则添了几分轻快。","tags":["省域副中心","港口城市","方特"],"spots":["鸠兹古镇","芜湖方特","镜湖","天门山"]},"maanshan":{"name":"马鞍山市","short":"马鞍山","en":"MA'ANSHAN","region":"皖南","area":"4,049","pop":"219.1","tagline":"诗城钢城，长江采石","desc":"长江东岸的钢铁之城，也是李白笔下的“天门中断楚江开”。采石矶、太白楼与濮塘竹海，让工业城市的硬朗线条里透出诗意。","tags":["钢铁基地","李白","采石矶"],"spots":["采石矶","太白楼","濮塘","褒禅山"]}};
+  const REGION_COLORS = {"皖北":"#c3a05f","江淮":"#6f9785","皖南":"#7794ae"};
+
+  const modal = document.getElementById("cityModal");
+  const sheet = modal.querySelector(".sheet");
+  const mapCities = document.getElementById("mapCities");
+  const mapLabels = document.getElementById("mapLabels");
+  const cityList = document.getElementById("cityList");
+  const closeBtn = modal.querySelector(".sheet-close");
+  let activeId = null;
+  let lastFocused = null;
+
+  const el = {
+    region: document.getElementById("modalRegion"),
+    title: document.getElementById("modalTitle"),
+    en: document.getElementById("modalEn"),
+    glyph: document.getElementById("modalGlyph"),
+    tagline: document.getElementById("modalTagline"),
+    area: document.getElementById("modalArea"),
+    pop: document.getElementById("modalPop"),
+    regionText: document.getElementById("modalRegionText"),
+    desc: document.getElementById("modalDesc"),
+    tags: document.getElementById("modalTags"),
+    spots: document.getElementById("modalSpots")
+  };
+
+  function cityNodes(id){
+    return {
+      path: document.querySelector('.city[data-city="' + id + '"]'),
+      label: document.querySelector('.city-label[data-city="' + id + '"]'),
+      item: document.querySelector('.city-item[data-city="' + id + '"]')
+    };
+  }
+
+  function clearActive(){
+    mapCities.classList.remove("has-selection");
+    mapLabels.classList.remove("has-selection");
+    document.querySelectorAll(".city.is-active, .city-label.is-active, .city-item.is-active")
+      .forEach(function(n){ n.classList.remove("is-active"); });
+    activeId = null;
+  }
+
+  function openCity(id, rememberFocus){
+    const city = CITIES[id];
+    if(!city) return;
+    if(activeId && activeId !== id){
+      const prev = cityNodes(activeId);
+      [prev.path, prev.label, prev.item].forEach(function(n){ if(n) n.classList.remove("is-active"); });
+    }
+    activeId = id;
+    if(rememberFocus !== false) lastFocused = document.activeElement;
+
+    const nodes = cityNodes(id);
+    if(nodes.path) nodes.path.classList.add("is-active");
+    if(nodes.label) nodes.label.classList.add("is-active");
+    if(nodes.item) nodes.item.classList.add("is-active");
+    mapCities.classList.add("has-selection");
+    mapLabels.classList.add("has-selection");
+
+    const color = REGION_COLORS[city.region] || "#6f9785";
+    sheet.style.setProperty("--region-color", color);
+    el.region.textContent = city.region;
+    el.title.textContent = city.name;
+    el.en.textContent = city.en;
+    el.glyph.textContent = city.name.charAt(0);
+    el.tagline.textContent = city.tagline;
+    el.area.textContent = city.area;
+    el.pop.textContent = city.pop;
+    el.regionText.textContent = city.region;
+    el.desc.textContent = city.desc;
+
+    el.tags.replaceChildren();
+    city.tags.forEach(function(t){
+      const span = document.createElement("span");
+      span.className = "tag";
+      span.textContent = t;
+      el.tags.appendChild(span);
+    });
+
+    el.spots.replaceChildren();
+    city.spots.forEach(function(s){
+      const li = document.createElement("li");
+      li.textContent = s;
+      el.spots.appendChild(li);
+    });
+
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(function(){ closeBtn.focus({preventScroll:true}); }, 60);
+  }
+
+  function closeCity(){
+    if(!modal.classList.contains("is-open")) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+    clearActive();
+    if(lastFocused && typeof lastFocused.focus === "function"){
+      lastFocused.focus({preventScroll:true});
+    }
+    lastFocused = null;
+  }
+
+  function bindOpeners(){
+    document.querySelectorAll(".city[data-city], .city-item[data-city]").forEach(function(node){
+      node.addEventListener("click", function(){ openCity(node.getAttribute("data-city")); });
+    });
+    document.querySelectorAll(".city[data-city]").forEach(function(node){
+      node.addEventListener("keydown", function(e){
+        if(e.key === "Enter" || e.key === " "){
+          e.preventDefault();
+          openCity(node.getAttribute("data-city"));
+        }
+      });
+    });
+    modal.querySelectorAll("[data-close]").forEach(function(node){
+      node.addEventListener("click", closeCity);
+    });
+  }
+
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape") closeCity();
+    if(e.key !== "Tab" || !modal.classList.contains("is-open")) return;
+    const focusables = sheet.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if(!focusables.length) return;
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  });
+
+  bindOpeners();
+
+  const params = new URLSearchParams(window.location.search);
+  const initial = params.get("city") || window.location.hash.replace(/^#/, "");
+  if(initial && CITIES[initial]){
+    window.setTimeout(function(){ openCity(initial, false); }, 450);
+  }
+})();
+</script>
+</body>
+</html>
